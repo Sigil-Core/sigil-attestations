@@ -1,34 +1,32 @@
 # sigil-attestations | Intent Attestation Specification
 
-**The cryptographic specification and shared validation libraries for Sigil OS Intent Attestations.**
+**Canonical specification and verification helpers for Sigil OS Intent Attestations.**
 
 ---
 
 ## Executive Summary
 
-`sigil-attestations` defines the canonical specification for **Intent Attestations** — the cryptographically signed artifacts issued by `sigil-sign` that authorize agent execution.
+`sigil-attestations` defines the formal cryptographic contract for Sigil OS **Intent Attestations**.
 
 This repository contains:
 
-- The formal JWT structure specification
-- Claim definitions and validation rules
-- Deterministic error code mappings
-- Chain binding requirements
-- Commit binding requirements
-- Verification guidelines
-- Lightweight validation helpers (where applicable)
+- The canonical JWT claim specification
+- Deterministic validation requirements
+- Error class definitions
+- TypeScript verification helpers (Ed25519 / EdDSA only)
+- Unit tests validating signature and claim enforcement
 
-This repository does **not** contain private keys, signing infrastructure, or production execution code.
+This repository does **not** contain private keys, signing infrastructure, policy engines, or production execution code.
 
 ---
 
-## Purpose in the Sigil Ecosystem
+## Role in the Sigil Architecture
 
-Sigil OS consists of three core services:
+Sigil OS consists of three primary components:
 
 - **sigil-sign** → Evaluates intent and issues signed Intent Attestations
 - **sigil-vault** → Releases execution capability after attestation validation
-- **sigil-attestations** → Defines the cryptographic contract that binds them
+- **sigil-attestations** → Defines and verifies the attestation format
 
 This repository ensures that:
 
@@ -39,6 +37,24 @@ This repository ensures that:
 
 ---
 
+## Repository Structure
+
+```
+sigil-attestations/
+  src/
+    index.ts          # Barrel exports
+    verify.ts         # verifyIntentAttestation implementation
+    errors.ts         # Strongly-typed verification errors
+    types.ts          # Intent and payload type definitions
+  tests/
+    verify.test.ts    # Unit tests (Vitest)
+  package.json
+  tsconfig.json
+  README.md
+```
+
+---
+
 ## Intent Attestation Overview
 
 An Intent Attestation is an **Ed25519 (EdDSA) signed JWT** that binds:
@@ -46,56 +62,60 @@ An Intent Attestation is an **Ed25519 (EdDSA) signed JWT** that binds:
 - Agent identity
 - Framework origin
 - Chain ID
-- Transaction or UserOp commit hash
-- Strict expiry window (≤ 60 seconds)
-- Issuer and audience claims
+- Transaction commit (`txCommit`) or ERC-4337 `userOpHash`
+- Strict expiration window (≤ 60 seconds)
+- Issuer (`iss = "sigil-core"`)
 
-The attestation proves that a transaction intent passed deterministic policy evaluation at a specific point in time.
-
----
-
-## Design Principles
-
-- **Deterministic** — No ambiguous claim fields
-- **Short-Lived** — Tight expiration windows
-- **Chain-Bound** — Explicit supported chain allowlist
-- **Commit-Bound** — Receipt binds to a specific tx hash or UserOp hash
-- **Offline Verifiable** — No network call required to validate signature
-- **Non-Custodial** — No private key handling inside this repo
+The attestation proves that a transaction intent passed deterministic policy evaluation at issuance time.
 
 ---
 
-## What This Repo Contains
+## Verification Rules (Normative)
 
-- `/spec` — Formal Intent Attestation specification (claims, schema, examples)
-- `/error-codes` — Deterministic validation vs policy vs internal error mappings
-- `/examples` — Sample signed and unsigned payloads
-- `/verification` — Example verification snippets (TypeScript / Python)
+Verification helpers in this repo strictly enforce:
 
----
+- `alg` must equal **EdDSA** (Ed25519 only)
+- `iss` must equal exactly **"sigil-core"**
+- `exp` must be present and valid
+- Payload must contain a valid `intent` object
+- Signature must verify against a published JWK
 
-## What This Repo Does NOT Contain
-
-- Signing keys
-- Production signing logic
-- Policy engines
-- Execution infrastructure
-
-Those live in `sigil-sign` and `sigil-vault`.
+Algorithms such as HS256, RS256, ES256 are explicitly rejected.
 
 ---
 
-## Verification Model
+## Public Key Publication
 
-An Intent Attestation must be verifiable by:
+Intent Attestations are verified using Sigil’s public JWKS endpoint:
 
-1. Extracting the JWT header and payload
-2. Validating signature using published JWK
-3. Confirming `iss`, `aud`, `exp`, and `chainId`
-4. Recomputing or verifying the commit binding
-5. Confirming the chain is supported
+```
+/.well-known/jwks.json
+```
 
-If all checks pass, the intent was authorized under Sigil policy at issuance time.
+Verification flow:
+
+1. Fetch or cache the JWKS
+2. Match JWT `kid` to JWK
+3. Verify Ed25519 signature
+4. Validate claims
+5. Validate commit binding
+
+Private signing keys are never exposed.
+
+---
+
+## Error Model
+
+Verification helpers expose strongly typed errors:
+
+- `SigilVerificationError` (base)
+- `InvalidAlgorithmError`
+- `InvalidIssuerError`
+- `ExpiredAttestationError`
+- `InvalidPayloadError`
+- `InvalidSignatureError`
+
+This allows deterministic error handling across runtimes.
 
 ---
 
@@ -103,61 +123,24 @@ If all checks pass, the intent was authorized under Sigil policy at issuance tim
 
 The Intent Attestation specification follows **Semantic Versioning (SemVer)**.
 
-Version format:
+- **MAJOR** — Breaking changes to required claims or validation rules
+- **MINOR** — Backward-compatible additions
+- **PATCH** — Documentation or non-normative fixes
 
-`MAJOR.MINOR.PATCH`
+Current Status: `v0.x` (Hackathon Phase)
 
-- **MAJOR** — Breaking changes to claim structure, required fields, or validation rules.
-- **MINOR** — Backward-compatible additions (new optional claims, new supported chain bindings, additional verification guidance).
-- **PATCH** — Clarifications, documentation fixes, or non-normative updates.
-
-During the hackathon phase, the spec is published as `v0.x`.
-
-A `v1.0.0` release will indicate:
-
-- Stable claim schema
-- Stable error code mappings
-- Stable chain binding rules
-- Formal verification examples
-
-Consumers should always validate the `spec_version` claim (when present) to ensure compatibility.
+A `v1.0.0` release will indicate stable claim schema and validation rules.
 
 ---
 
-## JWK Publication & Signature Verification
+## What This Repo Does NOT Contain
 
-Intent Attestations are signed using **Ed25519 (EdDSA)**.
+- Private signing keys
+- Production signing infrastructure
+- Policy engine implementation
+- Vault execution logic
 
-To enable offline verification, Sigil publishes a public JSON Web Key (JWK).
-
-Verification model:
-
-- The public JWK is published via a well-known endpoint (e.g., `/.well-known/jwks.json`).
-- The JWK contains only public key material.
-- Private signing keys are never exposed.
-
-Recommended verifier flow:
-
-1. Fetch or cache the public JWK set.
-2. Match the `kid` (Key ID) in the JWT header.
-3. Verify the Ed25519 signature.
-4. Validate required claims.
-
-Key rotation policy:
-
-- New keys are introduced with new `kid` values.
-- Old keys remain published for a defined overlap window.
-- Expired keys are removed after all valid attestations signed with them have expired.
-
-This ensures cryptographic continuity without breaking verification clients.
-
----
-
-## Status
-
-Specification v0.x (Hackathon Release)
-
-This repository will evolve as additional binding modes and capability types are introduced.
+Those live in `sigil-sign` and `sigil-vault`.
 
 ---
 
@@ -165,6 +148,6 @@ This repository will evolve as additional binding modes and capability types are
 
 MIT License
 
-This repository contains only specifications and validation helpers. It does not expose proprietary execution infrastructure.
+This repository contains only specifications and verification helpers.
 
 ---
