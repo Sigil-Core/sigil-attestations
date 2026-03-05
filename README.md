@@ -2,6 +2,11 @@
 
 **Canonical specification and verification helpers for Sigil OS Intent Attestations.**
 
+[![Status](https://img.shields.io/badge/status-active--development-black)](#)
+[![License](https://img.shields.io/badge/license-MIT-blue)](#)
+[![Security](https://img.shields.io/badge/security-Intent--Attestation-green)](#)
+[![Spec Version](https://img.shields.io/badge/spec-v0.x-blue)](#)
+
 ---
 
 ## Executive Summary
