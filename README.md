@@ -70,8 +70,13 @@ An Intent Attestation is an **Ed25519 (EdDSA) signed JWT** that binds:
 - Transaction commit (`txCommit`) or ERC-4337 `userOpHash`
 - Strict expiration window (≤ 60 seconds)
 - Issuer (`iss = "sigil-core"`)
+- Audience (`aud = "sigil-sign"` for `/v1/authorize` attestations, or the operator-configured audience for RPC/bundler scoped receipts)
+- Policy hash (`policyHash`) — SHA-256 of the ASSURANCE.md content evaluated at issuance time, providing cryptographic binding between attestation and policy version
+- Scope claim (`scope`) — present on RPC/bundler receipts; values are `rpc:write` or `bundler:send`
 
-The attestation proves that a transaction intent passed deterministic policy evaluation at issuance time.
+The attestation proves that a transaction intent passed deterministic policy evaluation (Sigil Lex) at issuance time, and which policy version made that decision.
+
+**Note on PENDING state:** When a Sigil Lex Class 3 consensus hold is triggered, no Intent Attestation is issued. The `/v1/authorize` endpoint returns a `202 PENDING` response with a `holdId` instead. Intent Attestation issuance is deferred until the hold is resolved through Sigil Command. Downstream verifiers (including sigil-vault) must treat an absent attestation for a PENDING hold as a structurally valid non-authorization, not an error.
 
 ---
 
@@ -81,9 +86,13 @@ Verification helpers in this repo strictly enforce:
 
 - `alg` must equal **EdDSA** (Ed25519 only)
 - `iss` must equal exactly **"sigil-core"**
+- `aud` must be validated against the expected audience for the context
 - `exp` must be present and valid
+- `iat` must be present and not in the future (beyond a 5-second clock tolerance)
 - Payload must contain a valid `intent` object
-- Signature must verify against a published JWK
+- `policyHash` must be present and treated as opaque by verifiers; auditors may cross-reference against known ASSURANCE.md versions
+- `scope` must be validated if the attestation is being used as an RPC/bundler receipt
+- Signature must verify against a published JWK from `/.well-known/jwks.json`
 
 Algorithms such as HS256, RS256, ES256 are explicitly rejected.
 
