@@ -71,7 +71,7 @@ An Intent Attestation is an **Ed25519 (EdDSA) signed JWT** that binds:
 - Strict expiration window (≤ 60 seconds)
 - Issuer (`iss = "sigil-core"`)
 - Audience (`aud = "sigil-sign"` for `/v1/authorize` attestations, or the operator-configured audience for RPC/bundler scoped receipts)
-- Policy hash (`policyHash`) — SHA-256 of the ASSURANCE.md content evaluated at issuance time, providing cryptographic binding between attestation and policy version
+- Policy hash (`policyHash`) — SHA-256 of the warranty.md content evaluated at issuance time, providing cryptographic binding between attestation and policy version
 - Scope claim (`scope`) — present on RPC/bundler receipts; values are `rpc:write` or `bundler:send`
 
 The attestation proves that a transaction intent passed deterministic policy evaluation (Sigil Lex) at issuance time, and which policy version made that decision.
@@ -90,7 +90,7 @@ Verification helpers in this repo strictly enforce:
 - `exp` must be present and valid
 - `iat` must be present and not in the future (beyond a 5-second clock tolerance)
 - Payload must contain a valid `intent` object
-- `policyHash` must be present and treated as opaque by verifiers; auditors may cross-reference against known ASSURANCE.md versions
+- `policyHash` must be present and treated as opaque by verifiers; auditors may cross-reference against known warranty.md versions
 - `scope` must be validated if the attestation is being used as an RPC/bundler receipt
 - Signature must verify against a published JWK from `/.well-known/jwks.json`
 
