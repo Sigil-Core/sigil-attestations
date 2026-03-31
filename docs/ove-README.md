@@ -45,7 +45,7 @@ OVE separates execution into three distinct layers:
 
 - **[Sigil Sign](https://sign.sigilcore.com)**
 - `@sigilcore/agent-hooks`
-- Enforces deterministic `ASSURANCE.md` policy
+- Enforces deterministic `warranty.md` policy
 - Issues short-lived Ed25519-signed **Intent Attestations** conforming to the `sigil-attestations` specification
 
 No transaction may execute without a valid Intent Attestation.
@@ -120,7 +120,7 @@ Before execution:
 
 1. The agent proposes a transaction.
 2. The transaction intent is sent to `POST https://sign.sigilcore.com/v1/authorize`.
-3. Sigil evaluates the request against `ASSURANCE.md`.
+3. Sigil evaluates the request against `warranty.md`.
 4. If compliant, Sigil Sign returns a short-lived Ed25519-signed Intent Attestation conforming to the `sigil-attestations` specification.
 5. The transaction is executed only if the attestation is appended.
 
@@ -139,7 +139,7 @@ npm install
 cp .env.example .env
 
 # Edit deterministic policy constraints
-nano ASSURANCE.md
+nano warranty.md
 
 # Start the Agentic VC
 npm run start
@@ -157,7 +157,7 @@ npm run start
     Agent orchestration logic
 
 /policy
-    ASSURANCE.md examples
+    warranty.md examples
 
 /integrations
     Sigil Sign + AgentKit adapters

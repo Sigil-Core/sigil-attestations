@@ -150,7 +150,7 @@ Compliance positioning:
 
 Vault produces cryptographically linked audit chains:
 
-Agent Prompt → ASSURANCE.md Policy → Intent Attestation → Capability Release → Execution
+Agent Prompt → warranty.md Policy → Intent Attestation → Capability Release → Execution
 
 Future enterprise deployments will support:
 
