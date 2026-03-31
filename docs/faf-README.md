@@ -17,7 +17,7 @@ The **Fiduciary Agent Framework (FAF)** is an open-source governance standard th
 FAF converts stochastic AI behavior into structurally bounded fiduciary execution through:
 
 - Legal entity wrapping  
-- Deterministic policy enforcement (`ASSURANCE.md`)  
+- Deterministic policy enforcement (`warranty.md`)
 - Cryptographically signed **Intent Attestations**  
 - Credential sequestration via Sigil infrastructure  
 
@@ -58,7 +58,7 @@ Under FAF:
 - AI agents **cannot execute without deterministic authorization**  
 - High-stakes actions must route through a policy enforcement layer  
 
-All execution routes through **[Sigil Sign](https://sign.sigilcore.com)** and is evaluated against a deterministic `ASSURANCE.md` policy.
+All execution routes through **[Sigil Sign](https://sign.sigilcore.com)** and is evaluated against a deterministic `warranty.md` policy.
 
 Execution only proceeds if the action carries a valid **Intent Attestation**.
 
@@ -82,14 +82,14 @@ This document establishes fiduciary boundaries.
 
 ---
 
-### 2. The `ASSURANCE.md` Policy Layer
+### 2. The `warranty.md` Policy Layer
 
-The GP translates legal constraints into deterministic, machine-readable rules inside `ASSURANCE.md`.
+The GP translates legal constraints into deterministic, machine-readable rules inside `warranty.md`.
 
 Example:
 
 ```md
-# ASSURANCE.md
+# warranty.md
 
 - Do not invest more than 5 ETH per token.
 - Only transact on allowlisted chainIds.
@@ -119,7 +119,7 @@ Direct execution is structurally blocked.
 
 ### 4. Intent Attestation (Cryptographic Enforcement)
 
-If the proposed action complies with `ASSURANCE.md`, Sigil Sign returns a short-lived, Ed25519-signed **Intent Attestation** (JWT).
+If the proposed action complies with `warranty.md`, Sigil Sign returns a short-lived, Ed25519-signed **Intent Attestation** (JWT).
 
 The attestation:
 
@@ -179,7 +179,7 @@ FAF assumes that language models are probabilistic and potentially adversarially
 | Threat Vector | Risk | Mitigation via FAF Architecture |
 |--------------|------|----------------------------------|
 | Prompt Injection | Agent executes unintended or malicious action | Deterministic pre-execution authorization via Sigil Sign |
-| Treasury Drain | Excess capital deployment beyond mandate | `ASSURANCE.md` enforced spend limits |
+| Treasury Drain | Excess capital deployment beyond mandate | `warranty.md` enforced spend limits |
 | Privilege Escalation | Agent exceeds defined authority | Deny-by-default policy enforcement |
 | Secret Exfiltration | API keys or private keys exposed to agent | Credential sequestration via Sigil Vault |
 | Infrastructure Mutation | Unauthorized infra or credential changes | Mandatory interception of high-stakes actions |
@@ -197,7 +197,7 @@ FAF assumes that models may hallucinate or be adversarially influenced. Therefor
     Standardized operating agreements (e.g., Wyoming DAO LLC)
 
 /policy-templates
-    Boilerplate ASSURANCE.md templates for:
+    Boilerplate warranty.md templates for:
         - Treasury management
         - DeFi strategies
         - Venture deployment

@@ -44,7 +44,7 @@ Execution proceeds only if the proposed action carries a valid, time‑bound Int
    The agent sends a `POST /v1/authorize` request to the sigil-sign API.
 
 3. **Deterministic Policy Evaluation**  
-   The request is validated (Zod schema enforcement), evaluated against `ASSURANCE.md`, and checked against allowlisted chainIds and policy constraints.
+   The request is validated (Zod schema enforcement), evaluated against `warranty.md`, and checked against allowlisted chainIds and policy constraints.
 
 4. **Intent Attestation (Approval)**  
    If compliant, sigil-sign returns a short‑lived Ed25519‑signed JWT Intent Attestation conforming to the `sigil-attestations` specification and bound to:
@@ -91,7 +91,7 @@ No execution should occur without a valid attestation.
 {
   "status": "APPROVED",
   "intent_attestation": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...",
-  "message": "Intent verified against ASSURANCE.md. Append attestation to transaction calldata."
+  "message": "Intent verified against warranty.md. Append attestation to transaction calldata."
 }
 ```
 
@@ -127,7 +127,7 @@ curl -X POST https://sign.sigilcore.com/v1/authorize \
       "amount": "1000000000000000000",
       "calldata": "0x"
     },
-    "context": "Treasury rebalance per ASSURANCE.md"
+    "context": "Treasury rebalance per warranty.md"
   }'
 ```
 
@@ -156,7 +156,7 @@ sigil-sign assumes models may hallucinate or be prompt‑injected. Therefore, en
 |--------------|------|--------------------------|
 | Prompt Injection | Agent executes unintended action | Deterministic pre‑execution policy evaluation |
 | Hallucinated Parameters | Malformed or malicious transaction | Strict Zod schema validation + commit binding |
-| Privilege Escalation | Agent exceeds treasury or scope limits | ASSURANCE.md policy constraints |
+| Privilege Escalation | Agent exceeds treasury or scope limits | warranty.md policy constraints |
 | Replay Attacks | Reuse of old authorization | ≤ 60 second expiration + commit binding |
 | Chain Mismatch | Execution on unsupported network | Explicit chainId allowlist |
 | Credential Leakage | Keys exposed to reasoning layer | No keys ever enter model context |
@@ -298,7 +298,7 @@ All error responses follow a strictly typed classification model.
 | Class | Prefix | Description |
 |-------|--------|------------|
 | Validation Errors | SIGIL_VALIDATION_* | Schema violations, malformed fields, missing claims |
-| Policy Violations | SIGIL_POLICY_* | Deterministic breach of ASSURANCE.md constraints |
+| Policy Violations | SIGIL_POLICY_* | Deterministic breach of warranty.md constraints |
 | Authorization Failures | SIGIL_AUTH_* | Invalid, expired, or mismatched Intent Attestation |
 | Internal Errors | SIGIL_INTERNAL_* | Unexpected infrastructure or runtime failure |
 
