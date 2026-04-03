@@ -227,7 +227,7 @@ FAF operates within the broader Sigil governance architecture:
 
 - **Sigil Sign** → Deterministic execution firewall  
 - **Sigil Vault** → Just-in-time credential sequestration  
-- **Sigil Sentry** → Mobile human-in-the-loop approval & monitoring interface (iOS / Android)  
+- **Sigil Command** → Mobile human-in-the-loop approval & monitoring interface (iOS / Android)  
 - **Sigil Anchor** → Hardware execution residency (future phase)  
 - **sigil-attestations** → Canonical Intent Attestation specification (Ed25519 JWT standard)  
 
