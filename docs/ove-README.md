@@ -54,9 +54,9 @@ No transaction may execute without a valid Intent Attestation.
 
 ## Human Oversight Layer
 
-While OVE is designed for autonomous execution, optional human-in-the-loop oversight can be implemented via **Sigil Sentry** (mobile app, iOS / Android).
+While OVE is designed for autonomous execution, optional human-in-the-loop oversight can be implemented via **Sigil Command** (mobile app, iOS / Android).
 
-Sigil Sentry enables:
+Sigil Command enables:
 
 - Real-time approval notifications
 - Execution monitoring
