@@ -1,2 +1,10 @@
 node_modules/
 dist/
+
+# Internal-only files (never commit to public repos)
+agents-global.md
+_MANIFEST.md
+CLAUDE.md
+AGENTS.md
+.claude/
+.DS_Store
