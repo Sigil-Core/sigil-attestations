@@ -8,3 +8,7 @@ CLAUDE.md
 AGENTS.md
 .claude/
 .DS_Store
+
+# Internal-only agent context — not for public repos
+AGENTS.md
+SERVICE.md
