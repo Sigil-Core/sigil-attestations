@@ -98,6 +98,102 @@ Algorithms such as HS256, RS256, ES256 are explicitly rejected.
 
 ---
 
+## SOF Core Policy Minimum (Normative)
+
+A signer that claims SOF Core Conformance MUST evaluate every received intent
+against the operator's `warranty.md` policy before issuing an Intent
+Attestation.
+
+For EVM intents, a Core Conformant signer MUST support the following Class 1
+structural rule fields from the FAF `warranty.md` schema:
+
+- `max_transaction_eth` — hard ceiling on EVM transaction value
+- `allowed_actions` — global action allowlist
+- `allowed_chains` — permitted chain ID allowlist
+- `chain_actions` — optional per-chain action overrides
+
+When `chain_actions` defines rules for the submitted `chainId`, those
+per-chain actions take precedence over `allowed_actions`. The signer MUST reject
+any intent that violates a supported Class 1 rule and MUST NOT issue an Intent
+Attestation for that intent.
+
+Class 2 semantic rules, Class 3 consensus holds, capability-broker
+integration, and operator oversight surfaces are Extended Conformance
+capabilities unless a later specification version makes them mandatory.
+
+---
+
+## SOF Version Header (Normative)
+
+The current SOF attestation specification identifier is
+`sigil-attestations-v1`.
+
+Every conforming authorization decision response MUST include the HTTP response
+header:
+
+```http
+X-SOF-Version: sigil-attestations-v1
+```
+
+This header declares the SOF wire contract used for the response. It does not
+replace JWT verification, claim validation, JWKS lookup, or policyHash audit
+checks.
+
+---
+
+## Conformance Discovery (Normative)
+
+Every conforming signer MUST publish an unauthenticated JSON conformance
+declaration at:
+
+```text
+/.well-known/sof-conformance.json
+```
+
+The endpoint MUST be served over TLS in production and MUST return
+`Content-Type: application/json`.
+
+Required fields:
+
+| Field | Type | Requirement |
+|---|---|---|
+| `spec_version` | string | MUST equal `sigil-attestations-v1` for this specification |
+| `conformance_level` | string | MUST be `core` or `extended` |
+| `extended_capabilities` | string[] | MUST be present; empty for Core-only signers |
+| `implementation_name` | string | Human-readable implementation name |
+| `implementer` | string | Organization or operator asserting conformance |
+| `contact` | string | Contact URI or email for security/spec issues |
+| `jwks_uri` | string | Absolute URL for the signer's JWKS endpoint |
+| `evaluated_against` | string | Reference target or test suite used for interoperability checks |
+| `self_asserted` | boolean | `true` until formal conformance testing has certified the implementation |
+| `asserted_at` | string | ISO 8601 UTC timestamp for the declaration |
+
+`extended_capabilities` values are:
+
+- `class_2`
+- `class_3`
+- `capability_broker`
+- `operator_oversight`
+
+Example:
+
+```json
+{
+  "spec_version": "sigil-attestations-v1",
+  "conformance_level": "core",
+  "extended_capabilities": [],
+  "implementation_name": "Acme Signer",
+  "implementer": "Acme Audit Firm",
+  "contact": "security@acme.example",
+  "jwks_uri": "https://signer.acme.example/.well-known/jwks.json",
+  "evaluated_against": "sign.sigilcore.com",
+  "self_asserted": true,
+  "asserted_at": "2026-05-05T00:00:00Z"
+}
+```
+
+---
+
 ## Public Key Publication
 
 Intent Attestations are verified using Sigil’s public JWKS endpoint:
@@ -141,9 +237,11 @@ The Intent Attestation specification follows **Semantic Versioning (SemVer)**.
 - **MINOR** — Backward-compatible additions
 - **PATCH** — Documentation or non-normative fixes
 
-Current Status: `v0.x` (Hackathon Phase)
+Current specification identifier: `sigil-attestations-v1`
 
-A `v1.0.0` release will indicate stable claim schema and validation rules.
+The npm package version may differ from the SOF specification identifier.
+Package releases version the helper library; the specification identifier
+versions the wire contract that signers and verifiers claim conformance to.
 
 ---
 
