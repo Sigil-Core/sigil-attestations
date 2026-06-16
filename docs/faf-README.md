@@ -126,7 +126,7 @@ The attestation:
 - Binds to a specific `chainId`  
 - Binds to a specific `txCommit` (EOA) or `userOpHash` (ERC-4337)  
 - Expires in ≤ 60 seconds  
-- Uses issuer `sigil-core`  
+- Uses the `SIGIL_ISSUER` value, defaulting to `sigil-core`
 - Uses audience `sigil-sign`  
 
 If denied, Sigil returns a deterministic JSON Rebound:

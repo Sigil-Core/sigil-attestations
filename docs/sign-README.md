@@ -51,7 +51,7 @@ Execution proceeds only if the proposed action carries a valid, time‑bound Int
    - `chainId`
    - `txCommit` or `userOpHash`
    - strict expiration (≤ 60 seconds)
-   - issuer `sigil-core`
+   - issuer from the signer's configured `SIGIL_ISSUER` value, defaulting to `sigil-core`
    - audience `sigil-sign`
 
 5. **Deterministic Rejection**  
