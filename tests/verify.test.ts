@@ -41,6 +41,23 @@ describe("verifyIntentAttestation", () => {
     expect(result.protectedHeader.alg).toBe("EdDSA");
   });
 
+  it("accepts a token from a configured trusted issuer", async () => {
+    const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+
+    const jwt = await new SignJWT({ intent: VALID_INTENT })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuer("consortium-issuer")
+      .setExpirationTime("1h")
+      .setIssuedAt()
+      .sign(privateKey);
+
+    const result = await verifyIntentAttestation(jwt, jwks, {
+      trustedIssuers: ["sigil-core", "consortium-issuer"],
+    });
+
+    expect(result.claims.iss).toBe("consortium-issuer");
+  });
+
   it("rejects a token signed with HS256 (wrong algorithm)", async () => {
     const secret = new TextEncoder().encode("super-secret-key-that-is-long-enough");
 
@@ -83,5 +100,19 @@ describe("verifyIntentAttestation", () => {
     await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
       InvalidIssuerError
     );
+  });
+
+  it("rejects an empty trusted issuer set", async () => {
+    const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+
+    const jwt = await new SignJWT({ intent: VALID_INTENT })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuer("sigil-core")
+      .setExpirationTime("1h")
+      .sign(privateKey);
+
+    await expect(
+      verifyIntentAttestation(jwt, jwks, { trustedIssuers: [] })
+    ).rejects.toThrow(InvalidIssuerError);
   });
 });

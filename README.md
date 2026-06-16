@@ -69,7 +69,7 @@ An Intent Attestation is an **Ed25519 (EdDSA) signed JWT** that binds:
 - Chain ID
 - Transaction commit (`txCommit`) or ERC-4337 `userOpHash`
 - Strict expiration window (≤ 60 seconds)
-- Issuer (`iss = "sigil-core"`)
+- Issuer (`iss`) in the verifier's trusted issuer set. The default trusted issuer set contains only `"sigil-core"`.
 - Audience (`aud = "sigil-sign"` for `/v1/authorize` attestations, or the operator-configured audience for RPC/bundler scoped receipts)
 - Policy hash (`policyHash`) — SHA-256 of the canonical JSON serialization of the evaluated warranty policy, providing deterministic cryptographic binding between the attestation and the exact policy version in effect at issuance time
 - Scope claim (`scope`) — present on RPC/bundler receipts; values are `rpc:write` or `bundler:send`
@@ -85,7 +85,7 @@ The attestation proves that a transaction intent passed deterministic policy eva
 Verification helpers in this repo strictly enforce:
 
 - `alg` must equal **EdDSA** (Ed25519 only)
-- `iss` must equal exactly **"sigil-core"**
+- `iss` must be present in the verifier's trusted issuer set. If no set is configured, the helper trusts only **"sigil-core"**
 - `aud` must be validated against the expected audience for the context
 - `exp` must be present and valid
 - `iat` must be present and not in the future (beyond a 5-second clock tolerance)
@@ -95,6 +95,26 @@ Verification helpers in this repo strictly enforce:
 - Signature must verify against a published JWK from `/.well-known/jwks.json`
 
 Algorithms such as HS256, RS256, ES256 are explicitly rejected.
+
+## Trusted Issuer Configuration (Normative)
+
+Verifiers MUST treat issuer trust as configuration, not as a code-level
+monopoly lock. The default trusted issuer set is:
+
+```json
+["sigil-core"]
+```
+
+Federated deployments add approved issuers to the verifier configuration:
+
+```ts
+await verifyIntentAttestation(token, jwks, {
+  trustedIssuers: ["sigil-core", "consortium-issuer"]
+});
+```
+
+An implementation MUST reject an attestation whose `iss` claim is absent from
+the configured trusted issuer set, even when the signature is otherwise valid.
 
 ---
 

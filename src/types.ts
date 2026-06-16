@@ -4,6 +4,10 @@ export interface Intent {
   amount?: string;
 }
 
+export interface VerifyIntentAttestationOptions {
+  trustedIssuers?: string | readonly string[];
+}
+
 export interface VerifiedAttestation {
   protectedHeader: {
     alg: string;

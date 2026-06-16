@@ -7,7 +7,32 @@ import {
   InvalidSignatureError,
   SigilVerificationError,
 } from "./errors.js";
-import type { Intent, VerifiedAttestation } from "./types.js";
+import type {
+  Intent,
+  VerifiedAttestation,
+  VerifyIntentAttestationOptions,
+} from "./types.js";
+
+const DEFAULT_TRUSTED_ISSUERS = ["sigil-core"] as const;
+
+function normalizeTrustedIssuers(
+  trustedIssuers: VerifyIntentAttestationOptions["trustedIssuers"]
+): string[] {
+  const issuerValues =
+    trustedIssuers === undefined
+      ? DEFAULT_TRUSTED_ISSUERS
+      : typeof trustedIssuers === "string"
+        ? [trustedIssuers]
+        : trustedIssuers;
+  const normalized = [...new Set(issuerValues.map((issuer) => issuer.trim()))]
+    .filter((issuer) => issuer.length > 0);
+
+  if (normalized.length === 0) {
+    throw new InvalidIssuerError("At least one trusted issuer is required");
+  }
+
+  return normalized;
+}
 
 function isIntent(value: unknown): value is Intent {
   if (typeof value !== "object" || value === null) return false;
@@ -20,8 +45,11 @@ function isIntent(value: unknown): value is Intent {
 
 export async function verifyIntentAttestation(
   jwt: string,
-  jwks: unknown
+  jwks: unknown,
+  options: VerifyIntentAttestationOptions = {}
 ): Promise<VerifiedAttestation> {
+  const trustedIssuers = normalizeTrustedIssuers(options.trustedIssuers);
+
   // Step 1: Enforce EdDSA before signature verification
   let header: ProtectedHeaderParameters;
   try {
@@ -44,7 +72,7 @@ export async function verifyIntentAttestation(
     const keySet = createLocalJWKSet(jwks as Parameters<typeof createLocalJWKSet>[0]);
     const result = await jwtVerify(jwt, keySet, {
       algorithms: ["EdDSA"],
-      issuer: "sigil-core",
+      issuer: trustedIssuers,
     });
     payload = result.payload as Record<string, unknown>;
     protectedHeader = result.protectedHeader as Record<string, unknown>;

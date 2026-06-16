@@ -7,4 +7,8 @@ export {
   InvalidPayloadError,
   InvalidSignatureError,
 } from "./errors.js";
-export type { Intent, VerifiedAttestation } from "./types.js";
+export type {
+  Intent,
+  VerifiedAttestation,
+  VerifyIntentAttestationOptions,
+} from "./types.js";
