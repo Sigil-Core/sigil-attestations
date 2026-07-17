@@ -5,6 +5,7 @@ import {
   InvalidAlgorithmError,
   ExpiredAttestationError,
   InvalidIssuerError,
+  InvalidPayloadError,
 } from "../src/errors.js";
 
 const VALID_INTENT = {
@@ -56,6 +57,49 @@ describe("verifyIntentAttestation", () => {
     });
 
     expect(result.claims.iss).toBe("consortium-issuer");
+  });
+
+  it("preserves and validates Policy 2.1 execution capability claims", async () => {
+    const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+    const executionGrant = {
+      policy_hash: "policy-hash",
+      manifest_sha256: "sha256:manifest",
+      shim_id: "shim-1",
+      executor_id: "executor-1",
+      adapter: "structured-tool",
+      adapter_version: "2.1.0",
+      nonce: "nonce-1",
+      issued_at: Math.floor(Date.now() / 1000),
+      expires_at: Math.floor(Date.now() / 1000) + 30,
+    };
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      policyHash: "policy-hash",
+      capabilities: ["filesystem.overwrite", "git.push_fast_forward"],
+      execution_grant: executionGrant,
+    })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuer("sigil-core")
+      .setExpirationTime("1h")
+      .setIssuedAt()
+      .sign(privateKey);
+
+    const result = await verifyIntentAttestation(jwt, jwks);
+    expect(result.claims.policyHash).toBe("policy-hash");
+    expect(result.claims.capabilities).toEqual(["filesystem.overwrite", "git.push_fast_forward"]);
+    expect(result.claims.execution_grant).toEqual(executionGrant);
+  });
+
+  it("rejects malformed capability claims", async () => {
+    const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+    const jwt = await new SignJWT({ intent: VALID_INTENT, capabilities: ["filesystem.overwrite", 4] })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuer("sigil-core")
+      .setExpirationTime("1h")
+      .setIssuedAt()
+      .sign(privateKey);
+
+    await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(InvalidPayloadError);
   });
 
   it("rejects a token signed with HS256 (wrong algorithm)", async () => {

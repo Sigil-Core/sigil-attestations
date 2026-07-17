@@ -9,6 +9,7 @@ import {
 } from "./errors.js";
 import type {
   Intent,
+  ExecutionGrantClaim,
   VerifiedAttestation,
   VerifyIntentAttestationOptions,
 } from "./types.js";
@@ -41,6 +42,15 @@ function isIntent(value: unknown): value is Intent {
   if (typeof obj.targetAddress !== "string") return false;
   if (obj.amount !== undefined && typeof obj.amount !== "string") return false;
   return true;
+}
+
+function isExecutionGrant(value: unknown): value is ExecutionGrantClaim {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  const strings = ["policy_hash", "manifest_sha256", "shim_id", "executor_id", "adapter", "adapter_version", "nonce"];
+  if (strings.some((key) => typeof candidate[key] !== "string" || candidate[key] === "")) return false;
+  if (!Number.isSafeInteger(candidate.issued_at) || !Number.isSafeInteger(candidate.expires_at)) return false;
+  return candidate.repository_id === undefined || typeof candidate.repository_id === "string";
 }
 
 export async function verifyIntentAttestation(
@@ -107,6 +117,13 @@ export async function verifyIntentAttestation(
     );
   }
 
+  if (payload.execution_grant !== undefined && !isExecutionGrant(payload.execution_grant)) {
+    throw new InvalidPayloadError("execution_grant claim is malformed");
+  }
+  if (payload.capabilities !== undefined && (!Array.isArray(payload.capabilities) || payload.capabilities.some((capability) => typeof capability !== "string" || capability.length === 0))) {
+    throw new InvalidPayloadError("capabilities claim must be a list of non-empty strings");
+  }
+
   const iat = typeof payload.iat === "number" ? payload.iat : undefined;
 
   return {
@@ -121,6 +138,10 @@ export async function verifyIntentAttestation(
       iss: payload.iss as string,
       exp: payload.exp as number,
       ...(iat !== undefined && { iat }),
+      ...(typeof payload.policyHash === "string" && { policyHash: payload.policyHash }),
+      ...(typeof payload.scope === "string" && { scope: payload.scope }),
+      ...(Array.isArray(payload.capabilities) && { capabilities: payload.capabilities as string[] }),
+      ...(isExecutionGrant(payload.execution_grant) && { execution_grant: payload.execution_grant }),
     },
     intent: payload.intent,
   };
