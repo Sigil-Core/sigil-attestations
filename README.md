@@ -73,6 +73,7 @@ An Intent Attestation is an **Ed25519 (EdDSA) signed JWT** that binds:
 - Audience (`aud = "sigil-sign"` for `/v1/authorize` attestations, or the operator-configured audience for RPC/bundler scoped receipts)
 - Policy hash (`policyHash`) — SHA-256 of the canonical JSON serialization of the evaluated warranty policy, providing deterministic cryptographic binding between the attestation and the exact policy version in effect at issuance time
 - Scope claim (`scope`) — present on RPC/bundler receipts; values are `rpc:write` or `bundler:send`
+- Hybrid PQC signature (`pqc`, OPTIONAL) — a parallel ML-DSA-65 signature over the canonicalized claim set, present when the issuing signer declares the `pqc_hybrid_attestations` extended capability
 
 The attestation proves that a transaction intent passed deterministic policy evaluation (Sigil Lex) at issuance time, and which policy version made that decision.
 
@@ -95,6 +96,26 @@ Verification helpers in this repo strictly enforce:
 - Signature must verify against a published JWK from `/.well-known/jwks.json`
 
 Algorithms such as HS256, RS256, ES256 are explicitly rejected.
+
+## Hybrid Post-Quantum Signature Claim (Extended)
+
+A signer with the `pqc_hybrid_attestations` extended capability embeds an OPTIONAL `pqc` claim in every approved attestation, carrying a parallel ML-DSA-65 (FIPS 204) signature over the same claim set:
+
+```json
+"pqc": {
+  "alg": "ML-DSA-65",
+  "kid": "<pqc key identifier>",
+  "ctx": "sigil-pqc-attestation-v1",
+  "canonicalization": "json-sorted-v1",
+  "sig": "<base64url ML-DSA-65 signature>"
+}
+```
+
+The signature is computed over the UTF-8 bytes of the signing context `sigil-pqc-attestation-v1`, a newline, then the canonical JSON of the claim set with the `pqc` claim removed. Canonicalization `json-sorted-v1`: recursively sort object keys in ascending lexicographic order, preserve array order, serialize as compact JSON.
+
+PQC-aware verifiers fetch ML-DSA-65 public keys from the issuer's `pqc_keys_uri` (hosted reference signer: `https://sign.sigilcore.com/v1/pqc-keys`; canonical application path `/.well-known/sigil-pqc-keys.json`). The Ed25519 JWT signature remains mandatory and is verified exactly as specified above; the `pqc` claim never replaces classical verification. Verifiers without PQC support MUST ignore the claim.
+
+The verification helpers in this repository verify the Ed25519 envelope only; ML-DSA-65 verification requires a PQC-capable library.
 
 ## Trusted Issuer Configuration (Normative)
 
@@ -194,6 +215,9 @@ Required fields:
 - `class_3`
 - `capability_broker`
 - `operator_oversight`
+- `pqc_hybrid_attestations`
+
+Signers declaring `pqc_hybrid_attestations` additionally publish a `pqc_keys_uri` field pointing at their ML-DSA-65 public key set and list `ML-DSA-65` alongside `EdDSA` in an `attestation_algorithms` array.
 
 Example:
 
