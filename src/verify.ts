@@ -50,6 +50,9 @@ function isExecutionGrant(value: unknown): value is ExecutionGrantClaim {
   const strings = ["policy_hash", "manifest_sha256", "shim_id", "executor_id", "adapter", "adapter_version", "nonce"];
   if (strings.some((key) => typeof candidate[key] !== "string" || candidate[key] === "")) return false;
   if (!Number.isSafeInteger(candidate.issued_at) || !Number.isSafeInteger(candidate.expires_at)) return false;
+  const issuedAt = candidate.issued_at as number;
+  const expiresAt = candidate.expires_at as number;
+  if (expiresAt <= issuedAt || expiresAt - issuedAt > 300) return false;
   return candidate.repository_id === undefined || typeof candidate.repository_id === "string";
 }
 
@@ -117,6 +120,10 @@ export async function verifyIntentAttestation(
     );
   }
 
+  if (typeof payload.policyHash !== "string" || payload.policyHash.length === 0) {
+    throw new InvalidPayloadError("Payload missing or invalid policyHash");
+  }
+
   if (payload.execution_grant !== undefined && !isExecutionGrant(payload.execution_grant)) {
     throw new InvalidPayloadError("execution_grant claim is malformed");
   }
@@ -138,7 +145,7 @@ export async function verifyIntentAttestation(
       iss: payload.iss as string,
       exp: payload.exp as number,
       ...(iat !== undefined && { iat }),
-      ...(typeof payload.policyHash === "string" && { policyHash: payload.policyHash }),
+      policyHash: payload.policyHash,
       ...(typeof payload.scope === "string" && { scope: payload.scope }),
       ...(Array.isArray(payload.capabilities) && { capabilities: payload.capabilities as string[] }),
       ...(isExecutionGrant(payload.execution_grant) && { execution_grant: payload.execution_grant }),

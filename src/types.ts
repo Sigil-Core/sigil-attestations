@@ -31,7 +31,7 @@ export interface VerifiedAttestation {
     iss: string;
     exp: number;
     iat?: number;
-    policyHash?: string;
+    policyHash: string;
     scope?: string;
     capabilities?: string[];
     execution_grant?: ExecutionGrantClaim;

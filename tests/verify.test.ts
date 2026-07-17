@@ -26,7 +26,7 @@ describe("verifyIntentAttestation", () => {
   it("verifies a valid EdDSA token", async () => {
     const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
 
-    const jwt = await new SignJWT({ intent: VALID_INTENT })
+    const jwt = await new SignJWT({ intent: VALID_INTENT, policyHash: "policy-hash" })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
       .setExpirationTime("1h")
@@ -45,7 +45,7 @@ describe("verifyIntentAttestation", () => {
   it("accepts a token from a configured trusted issuer", async () => {
     const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
 
-    const jwt = await new SignJWT({ intent: VALID_INTENT })
+    const jwt = await new SignJWT({ intent: VALID_INTENT, policyHash: "policy-hash" })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("consortium-issuer")
       .setExpirationTime("1h")
