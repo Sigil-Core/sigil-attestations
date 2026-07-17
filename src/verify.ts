@@ -127,6 +127,9 @@ export async function verifyIntentAttestation(
   if (payload.execution_grant !== undefined && !isExecutionGrant(payload.execution_grant)) {
     throw new InvalidPayloadError("execution_grant claim is malformed");
   }
+  if (isExecutionGrant(payload.execution_grant) && payload.execution_grant.policy_hash !== payload.policyHash) {
+    throw new InvalidPayloadError("execution_grant policy_hash does not match policyHash");
+  }
   if (payload.capabilities !== undefined && (!Array.isArray(payload.capabilities) || payload.capabilities.some((capability) => typeof capability !== "string" || capability.length === 0))) {
     throw new InvalidPayloadError("capabilities claim must be a list of non-empty strings");
   }

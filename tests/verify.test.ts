@@ -102,6 +102,32 @@ describe("verifyIntentAttestation", () => {
     await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(InvalidPayloadError);
   });
 
+  it("rejects an execution grant bound to a different policy hash", async () => {
+    const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      policyHash: "policy-hash",
+      execution_grant: {
+        policy_hash: "other-policy-hash",
+        manifest_sha256: "sha256:manifest",
+        shim_id: "shim-1",
+        executor_id: "executor-1",
+        adapter: "structured-tool",
+        adapter_version: "2.1.0",
+        nonce: "nonce-1",
+        issued_at: Math.floor(Date.now() / 1000),
+        expires_at: Math.floor(Date.now() / 1000) + 30,
+      },
+    })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuer("sigil-core")
+      .setExpirationTime("1h")
+      .setIssuedAt()
+      .sign(privateKey);
+
+    await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(InvalidPayloadError);
+  });
+
   it("rejects a token signed with HS256 (wrong algorithm)", async () => {
     const secret = new TextEncoder().encode("super-secret-key-that-is-long-enough");
 
