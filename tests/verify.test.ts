@@ -92,7 +92,11 @@ describe("verifyIntentAttestation", () => {
 
   it("rejects malformed capability claims", async () => {
     const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
-    const jwt = await new SignJWT({ intent: VALID_INTENT, capabilities: ["filesystem.overwrite", 4] })
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      policyHash: "policy-hash",
+      capabilities: ["filesystem.overwrite", 4],
+    })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
       .setExpirationTime("1h")
@@ -126,6 +130,91 @@ describe("verifyIntentAttestation", () => {
       .sign(privateKey);
 
     await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(InvalidPayloadError);
+  });
+
+  it("rejects an expired execution grant", async () => {
+    const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+    const now = Math.floor(Date.now() / 1000);
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      policyHash: "policy-hash",
+      execution_grant: {
+        policy_hash: "policy-hash",
+        manifest_sha256: "sha256:manifest",
+        shim_id: "shim-1",
+        executor_id: "executor-1",
+        adapter: "structured-tool",
+        adapter_version: "2.1.0",
+        nonce: "nonce-expired",
+        issued_at: now - 60,
+        expires_at: now - 1,
+      },
+    })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuer("sigil-core")
+      .setExpirationTime("1h")
+      .setIssuedAt()
+      .sign(privateKey);
+
+    await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
+      "execution_grant is expired or not yet valid"
+    );
+  });
+
+  it("rejects an execution grant issued in the future", async () => {
+    const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+    const now = Math.floor(Date.now() / 1000);
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      policyHash: "policy-hash",
+      execution_grant: {
+        policy_hash: "policy-hash",
+        manifest_sha256: "sha256:manifest",
+        shim_id: "shim-1",
+        executor_id: "executor-1",
+        adapter: "structured-tool",
+        adapter_version: "2.1.0",
+        nonce: "nonce-future",
+        issued_at: now + 60,
+        expires_at: now + 90,
+      },
+    })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuer("sigil-core")
+      .setExpirationTime("1h")
+      .setIssuedAt()
+      .sign(privateKey);
+
+    await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
+      "execution_grant is expired or not yet valid"
+    );
+  });
+
+  it("allows the documented five-second issuance clock tolerance", async () => {
+    const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+    const now = Math.floor(Date.now() / 1000);
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      policyHash: "policy-hash",
+      execution_grant: {
+        policy_hash: "policy-hash",
+        manifest_sha256: "sha256:manifest",
+        shim_id: "shim-1",
+        executor_id: "executor-1",
+        adapter: "structured-tool",
+        adapter_version: "2.1.0",
+        nonce: "nonce-clock-tolerance",
+        issued_at: now + 5,
+        expires_at: now + 35,
+      },
+    })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuer("sigil-core")
+      .setExpirationTime("1h")
+      .setIssuedAt()
+      .sign(privateKey);
+
+    await expect(verifyIntentAttestation(jwt, jwks)).resolves.toBeDefined();
   });
 
   it("rejects a token signed with HS256 (wrong algorithm)", async () => {

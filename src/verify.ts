@@ -15,6 +15,7 @@ import type {
 } from "./types.js";
 
 const DEFAULT_TRUSTED_ISSUERS = ["sigil-core"] as const;
+const CLOCK_TOLERANCE_SECONDS = 5;
 
 function normalizeTrustedIssuers(
   trustedIssuers: VerifyIntentAttestationOptions["trustedIssuers"]
@@ -129,6 +130,15 @@ export async function verifyIntentAttestation(
   }
   if (isExecutionGrant(payload.execution_grant) && payload.execution_grant.policy_hash !== payload.policyHash) {
     throw new InvalidPayloadError("execution_grant policy_hash does not match policyHash");
+  }
+  if (isExecutionGrant(payload.execution_grant)) {
+    const now = Math.floor(Date.now() / 1000);
+    if (
+      payload.execution_grant.expires_at <= now ||
+      payload.execution_grant.issued_at > now + CLOCK_TOLERANCE_SECONDS
+    ) {
+      throw new InvalidPayloadError("execution_grant is expired or not yet valid");
+    }
   }
   if (payload.capabilities !== undefined && (!Array.isArray(payload.capabilities) || payload.capabilities.some((capability) => typeof capability !== "string" || capability.length === 0))) {
     throw new InvalidPayloadError("capabilities claim must be a list of non-empty strings");
