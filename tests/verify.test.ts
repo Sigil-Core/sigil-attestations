@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { generateKeyPair, exportJWK, SignJWT, importJWK } from "jose";
 import { verifyIntentAttestation } from "../src/verify.js";
 import {
@@ -42,6 +42,14 @@ const makeExecutionGrant = (overrides: Record<string, unknown> = {}) => {
   };
 };
 
+const makeExecutionGrantWithWindow = (durationSeconds: number) => {
+  const issuedAt = Math.floor(Date.now() / 1000);
+  return makeExecutionGrant({
+    issued_at: issuedAt,
+    expires_at: issuedAt + durationSeconds,
+  });
+};
+
 const MALFORMED_EXECUTION_GRANTS: Array<[string, unknown]> = [
   ["non-object payload", "not-an-object"],
   ...REQUIRED_EXECUTION_GRANT_FIELDS.flatMap(
@@ -54,11 +62,11 @@ const MALFORMED_EXECUTION_GRANTS: Array<[string, unknown]> = [
   ["non-integer expires_at", makeExecutionGrant({ expires_at: 1.5 })],
   [
     "non-positive window",
-    makeExecutionGrant({ issued_at: 100, expires_at: 100 }),
+    makeExecutionGrantWithWindow(0),
   ],
   [
     "window longer than 300 seconds",
-    makeExecutionGrant({ issued_at: 100, expires_at: 401 }),
+    makeExecutionGrantWithWindow(301),
   ],
   ["invalid repository_id", makeExecutionGrant({ repository_id: 42 })],
   ["empty repository_id", makeExecutionGrant({ repository_id: "" })],
@@ -79,7 +87,7 @@ describe("verifyIntentAttestation", () => {
     const jwt = await new SignJWT({ intent: VALID_INTENT, policyHash: "policy-hash" })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
-      .setExpirationTime("1h")
+      .setExpirationTime("60s")
       .setIssuedAt()
       .sign(privateKey);
 
@@ -98,7 +106,7 @@ describe("verifyIntentAttestation", () => {
     const jwt = await new SignJWT({ intent: VALID_INTENT, policyHash: "policy-hash" })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("consortium-issuer")
-      .setExpirationTime("1h")
+      .setExpirationTime("60s")
       .setIssuedAt()
       .sign(privateKey);
 
@@ -130,7 +138,7 @@ describe("verifyIntentAttestation", () => {
     })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
-      .setExpirationTime("1h")
+      .setExpirationTime("60s")
       .setIssuedAt()
       .sign(privateKey);
 
@@ -151,7 +159,7 @@ describe("verifyIntentAttestation", () => {
       })
         .setProtectedHeader({ alg: "EdDSA" })
         .setIssuer("sigil-core")
-        .setExpirationTime("1h")
+        .setExpirationTime("60s")
         .setIssuedAt()
         .sign(privateKey);
 
@@ -171,7 +179,7 @@ describe("verifyIntentAttestation", () => {
       })
         .setProtectedHeader({ alg: "EdDSA" })
         .setIssuer("sigil-core")
-        .setExpirationTime("1h")
+        .setExpirationTime("60s")
         .setIssuedAt()
         .sign(privateKey);
 
@@ -190,7 +198,7 @@ describe("verifyIntentAttestation", () => {
     })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
-      .setExpirationTime("1h")
+      .setExpirationTime("60s")
       .setIssuedAt()
       .sign(privateKey);
 
@@ -217,7 +225,7 @@ describe("verifyIntentAttestation", () => {
     })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
-      .setExpirationTime("1h")
+      .setExpirationTime("60s")
       .setIssuedAt()
       .sign(privateKey);
 
@@ -245,7 +253,7 @@ describe("verifyIntentAttestation", () => {
     })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
-      .setExpirationTime("1h")
+      .setExpirationTime("60s")
       .setIssuedAt()
       .sign(privateKey);
 
@@ -275,7 +283,7 @@ describe("verifyIntentAttestation", () => {
     })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
-      .setExpirationTime("1h")
+      .setExpirationTime("60s")
       .setIssuedAt()
       .sign(privateKey);
 
@@ -305,7 +313,7 @@ describe("verifyIntentAttestation", () => {
     })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
-      .setExpirationTime("1h")
+      .setExpirationTime("60s")
       .setIssuedAt()
       .sign(privateKey);
 
@@ -323,7 +331,7 @@ describe("verifyIntentAttestation", () => {
     })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
-      .setExpirationTime("1h")
+      .setExpirationTime("60s")
       .setIssuedAt()
       .sign(privateKey);
 
@@ -356,7 +364,7 @@ describe("verifyIntentAttestation", () => {
     })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
-      .setExpirationTime("1h")
+      .setExpirationTime("60s")
       .sign(privateKey);
 
     await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
@@ -365,23 +373,50 @@ describe("verifyIntentAttestation", () => {
   });
 
   it("rejects a token issued beyond the five-second clock tolerance", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-24T17:00:00Z"));
     const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
-    const jwt = await new SignJWT({
-      intent: VALID_INTENT,
-      policyHash: "policy-hash",
-    })
-      .setProtectedHeader({ alg: "EdDSA" })
-      .setIssuer("sigil-core")
-      .setExpirationTime("1h")
-      .setIssuedAt(Math.floor(Date.now() / 1000) + 6)
-      .sign(privateKey);
+    try {
+      const jwt = await new SignJWT({
+        intent: VALID_INTENT,
+        policyHash: "policy-hash",
+      })
+        .setProtectedHeader({ alg: "EdDSA" })
+        .setIssuer("sigil-core")
+        .setExpirationTime("60s")
+        .setIssuedAt(Math.floor(Date.now() / 1000) + 6)
+        .sign(privateKey);
 
-    await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
-      "iat claim is beyond the five-second clock tolerance"
-    );
+      await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
+        "iat claim is beyond the five-second clock tolerance"
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("allows the documented five-second JWT issuance clock tolerance", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-24T17:00:00Z"));
+    const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+    try {
+      const jwt = await new SignJWT({
+        intent: VALID_INTENT,
+        policyHash: "policy-hash",
+      })
+        .setProtectedHeader({ alg: "EdDSA" })
+        .setIssuer("sigil-core")
+        .setExpirationTime("60s")
+        .setIssuedAt(Math.floor(Date.now() / 1000) + 5)
+        .sign(privateKey);
+
+      await expect(verifyIntentAttestation(jwt, jwks)).resolves.toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects an attestation lifetime longer than 60 seconds", async () => {
     const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
     const jwt = await new SignJWT({
       intent: VALID_INTENT,
@@ -389,11 +424,13 @@ describe("verifyIntentAttestation", () => {
     })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
-      .setExpirationTime("1h")
-      .setIssuedAt(Math.floor(Date.now() / 1000) + 5)
+      .setExpirationTime("61s")
+      .setIssuedAt()
       .sign(privateKey);
 
-    await expect(verifyIntentAttestation(jwt, jwks)).resolves.toBeDefined();
+    await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
+      "attestation lifetime must be between one and 60 seconds"
+    );
   });
 
   it.each(MALFORMED_EXECUTION_GRANTS)(
@@ -408,7 +445,7 @@ describe("verifyIntentAttestation", () => {
       })
         .setProtectedHeader({ alg: "EdDSA" })
         .setIssuer("sigil-core")
-        .setExpirationTime("1h")
+        .setExpirationTime("60s")
         .setIssuedAt()
         .sign(privateKey);
 
@@ -433,7 +470,7 @@ describe("verifyIntentAttestation", () => {
       })
         .setProtectedHeader({ alg: "EdDSA" })
         .setIssuer("sigil-core")
-        .setExpirationTime("1h")
+        .setExpirationTime("60s")
         .setIssuedAt()
         .sign(privateKey);
 
@@ -446,10 +483,14 @@ describe("verifyIntentAttestation", () => {
   it("rejects a token signed with HS256 (wrong algorithm)", async () => {
     const secret = new TextEncoder().encode("super-secret-key-that-is-long-enough");
 
-    const jwt = await new SignJWT({ intent: VALID_INTENT })
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      policyHash: "policy-hash",
+    })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuer("sigil-core")
-      .setExpirationTime("1h")
+      .setExpirationTime("60s")
+      .setIssuedAt()
       .sign(secret);
 
     const { jwks } = await makeEdDSAKeypairAndJWKS();
@@ -459,13 +500,17 @@ describe("verifyIntentAttestation", () => {
     );
   });
 
-  it("rejects an expired token", async () => {
+  it("rejects an expired token without expiration clock tolerance", async () => {
     const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
 
-    const jwt = await new SignJWT({ intent: VALID_INTENT })
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      policyHash: "policy-hash",
+    })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
       .setExpirationTime("-1s")
+      .setIssuedAt()
       .sign(privateKey);
 
     await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
@@ -476,10 +521,14 @@ describe("verifyIntentAttestation", () => {
   it("rejects a token with the wrong issuer", async () => {
     const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
 
-    const jwt = await new SignJWT({ intent: VALID_INTENT })
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      policyHash: "policy-hash",
+    })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("not-sigil-core")
-      .setExpirationTime("1h")
+      .setExpirationTime("60s")
+      .setIssuedAt()
       .sign(privateKey);
 
     await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
@@ -490,10 +539,14 @@ describe("verifyIntentAttestation", () => {
   it("rejects an empty trusted issuer set", async () => {
     const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
 
-    const jwt = await new SignJWT({ intent: VALID_INTENT })
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      policyHash: "policy-hash",
+    })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
-      .setExpirationTime("1h")
+      .setExpirationTime("60s")
+      .setIssuedAt()
       .sign(privateKey);
 
     await expect(

@@ -16,6 +16,7 @@ import type {
 
 const DEFAULT_TRUSTED_ISSUERS = ["sigil-core"] as const;
 const CLOCK_TOLERANCE_SECONDS = 5;
+const MAX_ATTESTATION_LIFETIME_SECONDS = 60;
 const RECEIPT_SCOPES = new Set(["rpc:write", "bundler:send"]);
 const SIGNATURE_ERROR_CODES = new Set([
   "ERR_JWS_SIGNATURE_VERIFICATION_FAILED",
@@ -111,8 +112,15 @@ const validateTemporalClaims = (payload: Record<string, unknown>): void => {
   if (!Number.isSafeInteger(payload.iat)) {
     throw new InvalidPayloadError("Payload missing or invalid iat");
   }
+  const exp = payload.exp as number;
+  const iat = payload.iat as number;
+  if (exp <= iat || exp - iat > MAX_ATTESTATION_LIFETIME_SECONDS) {
+    throw new InvalidPayloadError(
+      "attestation lifetime must be between one and 60 seconds"
+    );
+  }
   const now = Math.floor(Date.now() / 1000);
-  if ((payload.iat as number) > now + CLOCK_TOLERANCE_SECONDS) {
+  if (iat > now + CLOCK_TOLERANCE_SECONDS) {
     throw new InvalidPayloadError(
       "iat claim is beyond the five-second clock tolerance"
     );
@@ -308,6 +316,8 @@ const verifyJwt = async (
     const result = await jwtVerify(jwt, keySet, {
       algorithms: ["EdDSA"],
       issuer: trustedIssuers,
+      // The five-second tolerance is normative for future iat values only.
+      // Expired attestations fail immediately and receive no clock tolerance.
     });
     return {
       payload: result.payload as Record<string, unknown>,
