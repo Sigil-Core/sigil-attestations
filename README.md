@@ -73,6 +73,7 @@ An Intent Attestation is an **Ed25519 (EdDSA) signed JWT** that binds:
 - Audience (`aud = "sigil-sign"` for `/v1/authorize` attestations, or the operator-configured audience for RPC/bundler scoped receipts)
 - Policy hash (`policyHash`) — SHA-256 of the canonical JSON serialization of the evaluated warranty policy, providing deterministic cryptographic binding between the attestation and the exact policy version in effect at issuance time
 - Scope claim (`scope`) — present on RPC/bundler receipts; values are `rpc:write` or `bundler:send`
+- Policy 2.1 execution capability claims (`capabilities` and optional `execution_grant`) when the signer binds an attestation to a trusted structured execution boundary
 - Hybrid PQC signature (`pqc`, OPTIONAL) — a parallel ML-DSA-65 signature over the canonicalized claim set, present when the issuing signer declares the `pqc_hybrid_attestations` extended capability
 
 The attestation proves that a transaction intent passed deterministic policy evaluation (Sigil Lex) at issuance time, and which policy version made that decision.
@@ -93,6 +94,8 @@ Verification helpers in this repo strictly enforce:
 - Payload must contain a valid `intent` object
 - `policyHash` must be present and treated as opaque by verifiers; auditors may cross-reference against known warranty.md versions
 - `scope` must be validated if the attestation is being used as an RPC/bundler receipt
+- `capabilities`, when present, must be a list of non-empty capability identifiers
+- `execution_grant`, when present, must bind a policy hash, effect manifest hash, shim, executor, adapter, nonce, and bounded issuance window
 - Signature must verify against a published JWK from `/.well-known/jwks.json`
 
 Algorithms such as HS256, RS256, ES256 are explicitly rejected.

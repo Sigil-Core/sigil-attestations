@@ -9,6 +9,7 @@ export {
 } from "./errors.js";
 export type {
   Intent,
+  ExecutionGrantClaim,
   VerifiedAttestation,
   VerifyIntentAttestationOptions,
 } from "./types.js";
