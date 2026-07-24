@@ -224,21 +224,42 @@ const isIssuerClaimError = (
 ): boolean =>
   code === "ERR_JWT_CLAIM_VALIDATION_FAILED" && /iss/i.test(message);
 
-const throwVerificationError = (error: unknown): never => {
-  if (error instanceof SigilVerificationError) throw error;
-  const message = error instanceof Error ? error.message : String(error);
-  const code = (error as { code?: string }).code;
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
 
-  if (code === "ERR_JWT_EXPIRED") {
-    throw new ExpiredAttestationError();
-  }
-  if (isIssuerClaimError(code, message)) {
-    throw new InvalidIssuerError();
-  }
+const getExactVerificationError = (
+  code: string | undefined
+): SigilVerificationError | undefined => {
+  if (code === "ERR_JWT_EXPIRED") return new ExpiredAttestationError();
   if (code !== undefined && SIGNATURE_ERROR_CODES.has(code)) {
-    throw new InvalidSignatureError();
+    return new InvalidSignatureError();
   }
-  throw new SigilVerificationError(message);
+  return undefined;
+};
+
+const createVerificationError = (error: unknown): SigilVerificationError => {
+  if (error instanceof SigilVerificationError) return error;
+  const message = getErrorMessage(error);
+  const code = (error as { code?: string }).code;
+  const exactError = getExactVerificationError(code);
+  if (exactError !== undefined) return exactError;
+  if (isIssuerClaimError(code, message)) {
+    return new InvalidIssuerError();
+  }
+  return new SigilVerificationError(message);
+};
+
+const throwVerificationError = (error: unknown): never => {
+  throw createVerificationError(error);
+};
+
+const validateIntent = (value: unknown): Intent => {
+  if (!isIntent(value)) {
+    throw new InvalidPayloadError(
+      "Payload missing or invalid intent (requires action: string, targetAddress: string)"
+    );
+  }
+  return value;
 };
 
 const buildProtectedHeader = (
@@ -316,17 +337,12 @@ export const verifyIntentAttestation = async (
   validateTemporalClaims(payload);
 
   // Step 3: Validate intent
-  if (!isIntent(payload.intent)) {
-    throw new InvalidPayloadError(
-      "Payload missing or invalid intent (requires action: string, targetAddress: string)"
-    );
-  }
-
+  const intent = validateIntent(payload.intent);
   const policyClaims = validatePolicyClaims(payload);
 
   return {
     protectedHeader: buildProtectedHeader(protectedHeader),
     claims: buildVerifiedClaims(payload, policyClaims),
-    intent: payload.intent,
+    intent,
   };
 };
