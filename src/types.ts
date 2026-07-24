@@ -30,7 +30,7 @@ export interface VerifiedAttestation {
   claims: {
     iss: string;
     exp: number;
-    iat?: number;
+    iat: number;
     policyHash: string;
     scope?: string;
     capabilities?: string[];

@@ -22,6 +22,8 @@ const REQUIRED_EXECUTION_GRANT_FIELDS = [
   "adapter",
   "adapter_version",
   "nonce",
+  "issued_at",
+  "expires_at",
 ] as const;
 
 const makeExecutionGrant = (overrides: Record<string, unknown> = {}) => {
@@ -137,6 +139,47 @@ describe("verifyIntentAttestation", () => {
     expect(result.claims.capabilities).toEqual(["filesystem.overwrite", "git.push_fast_forward"]);
     expect(result.claims.execution_grant).toEqual(executionGrant);
   });
+
+  it.each(["rpc:write", "bundler:send"])(
+    "accepts the documented %s receipt scope",
+    async (scope) => {
+      const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+      const jwt = await new SignJWT({
+        intent: VALID_INTENT,
+        policyHash: "policy-hash",
+        scope,
+      })
+        .setProtectedHeader({ alg: "EdDSA" })
+        .setIssuer("sigil-core")
+        .setExpirationTime("1h")
+        .setIssuedAt()
+        .sign(privateKey);
+
+      const result = await verifyIntentAttestation(jwt, jwks);
+      expect(result.claims.scope).toBe(scope);
+    }
+  );
+
+  it.each(["admin", "", 4])(
+    "rejects the unsupported receipt scope %j",
+    async (scope) => {
+      const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+      const jwt = await new SignJWT({
+        intent: VALID_INTENT,
+        policyHash: "policy-hash",
+        scope,
+      })
+        .setProtectedHeader({ alg: "EdDSA" })
+        .setIssuer("sigil-core")
+        .setExpirationTime("1h")
+        .setIssuedAt()
+        .sign(privateKey);
+
+      await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
+        "scope claim must be rpc:write or bundler:send"
+      );
+    }
+  );
 
   it("rejects malformed capability claims", async () => {
     const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
@@ -289,25 +332,89 @@ describe("verifyIntentAttestation", () => {
     );
   });
 
-  it.each(MALFORMED_EXECUTION_GRANTS)(
-    "rejects execution grants with %s",
-    async (_label, executionGrant) => {
+  it("rejects a token without exp", async () => {
     const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
     const jwt = await new SignJWT({
       intent: VALID_INTENT,
       policyHash: "policy-hash",
-      capabilities: ["filesystem.overwrite"],
-      execution_grant: executionGrant,
     })
       .setProtectedHeader({ alg: "EdDSA" })
       .setIssuer("sigil-core")
-      .setExpirationTime("1h")
       .setIssuedAt()
       .sign(privateKey);
 
     await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
-      "execution_grant claim is malformed"
+      "Payload missing or invalid exp"
     );
+  });
+
+  it("rejects a token without iat", async () => {
+    const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      policyHash: "policy-hash",
+    })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuer("sigil-core")
+      .setExpirationTime("1h")
+      .sign(privateKey);
+
+    await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
+      "Payload missing or invalid iat"
+    );
+  });
+
+  it("rejects a token issued beyond the five-second clock tolerance", async () => {
+    const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      policyHash: "policy-hash",
+    })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuer("sigil-core")
+      .setExpirationTime("1h")
+      .setIssuedAt(Math.floor(Date.now() / 1000) + 6)
+      .sign(privateKey);
+
+    await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
+      "iat claim is beyond the five-second clock tolerance"
+    );
+  });
+
+  it("allows the documented five-second JWT issuance clock tolerance", async () => {
+    const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      policyHash: "policy-hash",
+    })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuer("sigil-core")
+      .setExpirationTime("1h")
+      .setIssuedAt(Math.floor(Date.now() / 1000) + 5)
+      .sign(privateKey);
+
+    await expect(verifyIntentAttestation(jwt, jwks)).resolves.toBeDefined();
+  });
+
+  it.each(MALFORMED_EXECUTION_GRANTS)(
+    "rejects execution grants with %s",
+    async (_label, executionGrant) => {
+      const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+      const jwt = await new SignJWT({
+        intent: VALID_INTENT,
+        policyHash: "policy-hash",
+        capabilities: ["filesystem.overwrite"],
+        execution_grant: executionGrant,
+      })
+        .setProtectedHeader({ alg: "EdDSA" })
+        .setIssuer("sigil-core")
+        .setExpirationTime("1h")
+        .setIssuedAt()
+        .sign(privateKey);
+
+      await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
+        "execution_grant claim is malformed"
+      );
     }
   );
 

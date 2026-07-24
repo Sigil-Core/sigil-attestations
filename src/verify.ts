@@ -16,6 +16,12 @@ import type {
 
 const DEFAULT_TRUSTED_ISSUERS = ["sigil-core"] as const;
 const CLOCK_TOLERANCE_SECONDS = 5;
+const RECEIPT_SCOPES = new Set(["rpc:write", "bundler:send"]);
+const SIGNATURE_ERROR_CODES = new Set([
+  "ERR_JWS_SIGNATURE_VERIFICATION_FAILED",
+  "ERR_JWS_INVALID",
+  "ERR_JWT_INVALID",
+]);
 const EXECUTION_GRANT_STRING_FIELDS = [
   "policy_hash",
   "manifest_sha256",
@@ -45,17 +51,17 @@ const normalizeTrustedIssuers = (
   return normalized;
 };
 
-const isIntent = (value: unknown): value is Intent => {
-  if (typeof value !== "object" || value === null) return false;
-  const obj = value as Record<string, unknown>;
-  if (typeof obj.action !== "string") return false;
-  if (typeof obj.targetAddress !== "string") return false;
-  if (obj.amount !== undefined && typeof obj.amount !== "string") return false;
-  return true;
-};
-
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isIntent = (value: unknown): value is Intent =>
+  isRecord(value) &&
+  typeof value.action === "string" &&
+  typeof value.targetAddress === "string" &&
+  (value.amount === undefined || typeof value.amount === "string");
 
 const hasValidExecutionGrantStrings = (
   candidate: Record<string, unknown>
@@ -98,6 +104,21 @@ const validateExecutionGrantWindow = (grant: ExecutionGrantClaim): void => {
   }
 };
 
+const validateTemporalClaims = (payload: Record<string, unknown>): void => {
+  if (!Number.isSafeInteger(payload.exp)) {
+    throw new InvalidPayloadError("Payload missing or invalid exp");
+  }
+  if (!Number.isSafeInteger(payload.iat)) {
+    throw new InvalidPayloadError("Payload missing or invalid iat");
+  }
+  const now = Math.floor(Date.now() / 1000);
+  if ((payload.iat as number) > now + CLOCK_TOLERANCE_SECONDS) {
+    throw new InvalidPayloadError(
+      "iat claim is beyond the five-second clock tolerance"
+    );
+  }
+};
+
 const validateCapabilities = (value: unknown): string[] | undefined => {
   if (value === undefined) return undefined;
   if (
@@ -111,6 +132,37 @@ const validateCapabilities = (value: unknown): string[] | undefined => {
   return value;
 };
 
+const validateScope = (value: unknown): string | undefined => {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !RECEIPT_SCOPES.has(value)) {
+    throw new InvalidPayloadError(
+      "scope claim must be rpc:write or bundler:send"
+    );
+  }
+  return value;
+};
+
+const requireExecutionGrantCapabilities = (
+  capabilities: string[] | undefined
+): void => {
+  if (capabilities === undefined || capabilities.length === 0) {
+    throw new InvalidPayloadError(
+      "execution_grant requires at least one capability"
+    );
+  }
+};
+
+const requireExecutionGrantPolicyBinding = (
+  grant: ExecutionGrantClaim,
+  policyHash: string
+): void => {
+  if (grant.policy_hash !== policyHash) {
+    throw new InvalidPayloadError(
+      "execution_grant policy_hash does not match policyHash"
+    );
+  }
+};
+
 const validateBoundExecutionGrant = (
   value: unknown,
   policyHash: string,
@@ -120,16 +172,8 @@ const validateBoundExecutionGrant = (
   if (!isExecutionGrant(value)) {
     throw new InvalidPayloadError("execution_grant claim is malformed");
   }
-  if (capabilities === undefined || capabilities.length === 0) {
-    throw new InvalidPayloadError(
-      "execution_grant requires at least one capability"
-    );
-  }
-  if (value.policy_hash !== policyHash) {
-    throw new InvalidPayloadError(
-      "execution_grant policy_hash does not match policyHash"
-    );
-  }
+  requireExecutionGrantCapabilities(capabilities);
+  requireExecutionGrantPolicyBinding(value, policyHash);
   validateExecutionGrantWindow(value);
   return value;
 };
@@ -174,6 +218,12 @@ const decodeEdDsaHeader = async (
   return header;
 };
 
+const isIssuerClaimError = (
+  code: string | undefined,
+  message: string
+): boolean =>
+  code === "ERR_JWT_CLAIM_VALIDATION_FAILED" && /iss/i.test(message);
+
 const throwVerificationError = (error: unknown): never => {
   if (error instanceof SigilVerificationError) throw error;
   const message = error instanceof Error ? error.message : String(error);
@@ -182,21 +232,44 @@ const throwVerificationError = (error: unknown): never => {
   if (code === "ERR_JWT_EXPIRED") {
     throw new ExpiredAttestationError();
   }
-  if (
-    code === "ERR_JWT_CLAIM_VALIDATION_FAILED" &&
-    message.toLowerCase().includes("iss")
-  ) {
+  if (isIssuerClaimError(code, message)) {
     throw new InvalidIssuerError();
   }
-  const signatureCodes = new Set([
-    "ERR_JWS_SIGNATURE_VERIFICATION_FAILED",
-    "ERR_JWS_INVALID",
-    "ERR_JWT_INVALID",
-  ]);
-  if (code !== undefined && signatureCodes.has(code)) {
+  if (code !== undefined && SIGNATURE_ERROR_CODES.has(code)) {
     throw new InvalidSignatureError();
   }
   throw new SigilVerificationError(message);
+};
+
+const buildProtectedHeader = (
+  protectedHeader: Record<string, unknown>
+): VerifiedAttestation["protectedHeader"] => ({
+  alg: protectedHeader.alg as string,
+  ...(protectedHeader.kid !== undefined && {
+    kid: protectedHeader.kid as string,
+  }),
+  ...protectedHeader,
+});
+
+const buildVerifiedClaims = (
+  payload: Record<string, unknown>,
+  policyClaims: ReturnType<typeof validatePolicyClaims>
+): VerifiedAttestation["claims"] => {
+  const claims: VerifiedAttestation["claims"] = {
+    iss: payload.iss as string,
+    exp: payload.exp as number,
+    iat: payload.iat as number,
+    policyHash: policyClaims.policyHash,
+  };
+  const scope = validateScope(payload.scope);
+  if (scope !== undefined) claims.scope = scope;
+  if (policyClaims.capabilities !== undefined) {
+    claims.capabilities = policyClaims.capabilities;
+  }
+  if (policyClaims.executionGrant !== undefined) {
+    claims.execution_grant = policyClaims.executionGrant;
+  }
+  return claims;
 };
 
 const verifyJwt = async (
@@ -240,6 +313,7 @@ export const verifyIntentAttestation = async (
     jwks,
     trustedIssuers
   );
+  validateTemporalClaims(payload);
 
   // Step 3: Validate intent
   if (!isIntent(payload.intent)) {
@@ -250,29 +324,9 @@ export const verifyIntentAttestation = async (
 
   const policyClaims = validatePolicyClaims(payload);
 
-  const iat = typeof payload.iat === "number" ? payload.iat : undefined;
-
   return {
-    protectedHeader: {
-      alg: protectedHeader.alg as string,
-      ...(protectedHeader.kid !== undefined && {
-        kid: protectedHeader.kid as string,
-      }),
-      ...protectedHeader,
-    },
-    claims: {
-      iss: payload.iss as string,
-      exp: payload.exp as number,
-      ...(iat !== undefined && { iat }),
-      policyHash: policyClaims.policyHash,
-      ...(typeof payload.scope === "string" && { scope: payload.scope }),
-      ...(policyClaims.capabilities !== undefined && {
-        capabilities: policyClaims.capabilities,
-      }),
-      ...(policyClaims.executionGrant !== undefined && {
-        execution_grant: policyClaims.executionGrant,
-      }),
-    },
+    protectedHeader: buildProtectedHeader(protectedHeader),
+    claims: buildVerifiedClaims(payload, policyClaims),
     intent: payload.intent,
   };
 };
