@@ -14,6 +14,54 @@ const VALID_INTENT = {
   amount: "1.5",
 };
 
+const REQUIRED_EXECUTION_GRANT_FIELDS = [
+  "policy_hash",
+  "manifest_sha256",
+  "shim_id",
+  "executor_id",
+  "adapter",
+  "adapter_version",
+  "nonce",
+] as const;
+
+const makeExecutionGrant = (overrides: Record<string, unknown> = {}) => {
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    policy_hash: "policy-hash",
+    manifest_sha256: "sha256:manifest",
+    shim_id: "shim-1",
+    executor_id: "executor-1",
+    adapter: "structured-tool",
+    adapter_version: "2.1.0",
+    nonce: "nonce-test",
+    issued_at: now,
+    expires_at: now + 30,
+    ...overrides,
+  };
+};
+
+const MALFORMED_EXECUTION_GRANTS: Array<[string, unknown]> = [
+  ["non-object payload", "not-an-object"],
+  ...REQUIRED_EXECUTION_GRANT_FIELDS.flatMap(
+    (field): Array<[string, unknown]> => [
+      [`missing ${field}`, makeExecutionGrant({ [field]: undefined })],
+      [`empty ${field}`, makeExecutionGrant({ [field]: "" })],
+    ]
+  ),
+  ["non-integer issued_at", makeExecutionGrant({ issued_at: 1.5 })],
+  ["non-integer expires_at", makeExecutionGrant({ expires_at: 1.5 })],
+  [
+    "non-positive window",
+    makeExecutionGrant({ issued_at: 100, expires_at: 100 }),
+  ],
+  [
+    "window longer than 300 seconds",
+    makeExecutionGrant({ issued_at: 100, expires_at: 401 }),
+  ],
+  ["invalid repository_id", makeExecutionGrant({ repository_id: 42 })],
+  ["empty repository_id", makeExecutionGrant({ repository_id: "" })],
+];
+
 async function makeEdDSAKeypairAndJWKS() {
   const { privateKey, publicKey } = await generateKeyPair("EdDSA");
   const publicJwk = await exportJWK(publicKey);
@@ -111,6 +159,7 @@ describe("verifyIntentAttestation", () => {
     const jwt = await new SignJWT({
       intent: VALID_INTENT,
       policyHash: "policy-hash",
+      capabilities: ["filesystem.overwrite"],
       execution_grant: {
         policy_hash: "other-policy-hash",
         manifest_sha256: "sha256:manifest",
@@ -138,6 +187,7 @@ describe("verifyIntentAttestation", () => {
     const jwt = await new SignJWT({
       intent: VALID_INTENT,
       policyHash: "policy-hash",
+      capabilities: ["filesystem.overwrite"],
       execution_grant: {
         policy_hash: "policy-hash",
         manifest_sha256: "sha256:manifest",
@@ -167,6 +217,7 @@ describe("verifyIntentAttestation", () => {
     const jwt = await new SignJWT({
       intent: VALID_INTENT,
       policyHash: "policy-hash",
+      capabilities: ["filesystem.overwrite"],
       execution_grant: {
         policy_hash: "policy-hash",
         manifest_sha256: "sha256:manifest",
@@ -196,6 +247,7 @@ describe("verifyIntentAttestation", () => {
     const jwt = await new SignJWT({
       intent: VALID_INTENT,
       policyHash: "policy-hash",
+      capabilities: ["filesystem.overwrite"],
       execution_grant: {
         policy_hash: "policy-hash",
         manifest_sha256: "sha256:manifest",
@@ -216,6 +268,73 @@ describe("verifyIntentAttestation", () => {
 
     await expect(verifyIntentAttestation(jwt, jwks)).resolves.toBeDefined();
   });
+
+  it.each([
+    ["missing policyHash", undefined],
+    ["non-string policyHash", 7],
+  ])("rejects %s", async (_label, policyHash) => {
+    const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      ...(policyHash !== undefined && { policyHash }),
+    })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuer("sigil-core")
+      .setExpirationTime("1h")
+      .setIssuedAt()
+      .sign(privateKey);
+
+    await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
+      "Payload missing or invalid policyHash"
+    );
+  });
+
+  it.each(MALFORMED_EXECUTION_GRANTS)(
+    "rejects execution grants with %s",
+    async (_label, executionGrant) => {
+    const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+    const jwt = await new SignJWT({
+      intent: VALID_INTENT,
+      policyHash: "policy-hash",
+      capabilities: ["filesystem.overwrite"],
+      execution_grant: executionGrant,
+    })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setIssuer("sigil-core")
+      .setExpirationTime("1h")
+      .setIssuedAt()
+      .sign(privateKey);
+
+    await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
+      "execution_grant claim is malformed"
+    );
+    }
+  );
+
+  it.each([
+    ["missing capabilities", undefined],
+    ["empty capabilities", []],
+  ])(
+    "rejects an execution grant with %s",
+    async (_label, capabilities) => {
+      const { privateKey, jwks } = await makeEdDSAKeypairAndJWKS();
+      const jwt = await new SignJWT({
+        intent: VALID_INTENT,
+        policyHash: "policy-hash",
+        ...(capabilities !== undefined && { capabilities }),
+        execution_grant: makeExecutionGrant(),
+      })
+        .setProtectedHeader({ alg: "EdDSA" })
+        .setIssuer("sigil-core")
+        .setExpirationTime("1h")
+        .setIssuedAt()
+        .sign(privateKey);
+
+      await expect(verifyIntentAttestation(jwt, jwks)).rejects.toThrow(
+        "execution_grant requires at least one capability"
+      );
+    }
+  );
 
   it("rejects a token signed with HS256 (wrong algorithm)", async () => {
     const secret = new TextEncoder().encode("super-secret-key-that-is-long-enough");
