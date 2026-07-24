@@ -105,26 +105,39 @@ const validateExecutionGrantWindow = (grant: ExecutionGrantClaim): void => {
   }
 };
 
-const validateTemporalClaims = (payload: Record<string, unknown>): void => {
-  if (!Number.isSafeInteger(payload.exp)) {
-    throw new InvalidPayloadError("Payload missing or invalid exp");
+const requireSafeIntegerClaim = (
+  payload: Record<string, unknown>,
+  claim: "exp" | "iat"
+): number => {
+  const value = payload[claim];
+  if (!Number.isSafeInteger(value)) {
+    throw new InvalidPayloadError(`Payload missing or invalid ${claim}`);
   }
-  if (!Number.isSafeInteger(payload.iat)) {
-    throw new InvalidPayloadError("Payload missing or invalid iat");
-  }
-  const exp = payload.exp as number;
-  const iat = payload.iat as number;
+  return value as number;
+};
+
+const validateAttestationLifetime = (exp: number, iat: number): void => {
   if (exp <= iat || exp - iat > MAX_ATTESTATION_LIFETIME_SECONDS) {
     throw new InvalidPayloadError(
       "attestation lifetime must be between one and 60 seconds"
     );
   }
+};
+
+const validateIssuedAt = (iat: number): void => {
   const now = Math.floor(Date.now() / 1000);
   if (iat > now + CLOCK_TOLERANCE_SECONDS) {
     throw new InvalidPayloadError(
       "iat claim is beyond the five-second clock tolerance"
     );
   }
+};
+
+const validateTemporalClaims = (payload: Record<string, unknown>): void => {
+  const exp = requireSafeIntegerClaim(payload, "exp");
+  const iat = requireSafeIntegerClaim(payload, "iat");
+  validateAttestationLifetime(exp, iat);
+  validateIssuedAt(iat);
 };
 
 const validateCapabilities = (value: unknown): string[] | undefined => {
@@ -235,6 +248,11 @@ const isIssuerClaimError = (
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
+const getErrorCode = (error: unknown): string | undefined => {
+  if (!isRecord(error)) return undefined;
+  return typeof error.code === "string" ? error.code : undefined;
+};
+
 const getExactVerificationError = (
   code: string | undefined
 ): SigilVerificationError | undefined => {
@@ -248,7 +266,7 @@ const getExactVerificationError = (
 const createVerificationError = (error: unknown): SigilVerificationError => {
   if (error instanceof SigilVerificationError) return error;
   const message = getErrorMessage(error);
-  const code = (error as { code?: string }).code;
+  const code = getErrorCode(error);
   const exactError = getExactVerificationError(code);
   if (exactError !== undefined) return exactError;
   if (isIssuerClaimError(code, message)) {
