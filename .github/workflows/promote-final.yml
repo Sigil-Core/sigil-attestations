@@ -1,0 +1,52 @@
+name: Promote immutable verifier release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    if: ${{ !contains(github.ref_name, '-rc.') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require the final tag to promote its unchanged rc.1 commit
+        env:
+          FINAL_TAG: ${{ github.ref_name }}
+        run: |
+          candidate_tag="${FINAL_TAG}-rc.1"
+          git fetch --force --tags origin
+          test "$(git rev-list -n 1 "$FINAL_TAG")" = "$(git rev-list -n 1 "$candidate_tag")"
+      - name: Refuse an existing final release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FINAL_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$FINAL_TAG"; then
+            echo "Release already exists: $FINAL_TAG"
+            exit 1
+          fi
+      - name: Download and verify the immutable rc artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FINAL_TAG: ${{ github.ref_name }}
+        run: |
+          candidate_tag="${FINAL_TAG}-rc.1"
+          mkdir release-assets
+          gh release download "$candidate_tag" --pattern 'sigil-attestations-*.tgz' --pattern 'sigil-attestations-*.tgz.sha256' --dir release-assets
+          cd release-assets
+          sha256sum --check *.sha256
+      - name: Create final release from the unchanged rc artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FINAL_TAG: ${{ github.ref_name }}
+        run: >-
+          gh release create "$FINAL_TAG" release-assets/sigil-attestations-*.tgz
+          release-assets/sigil-attestations-*.tgz.sha256 --title "$FINAL_TAG"
+          --notes "Promoted unchanged artifact from ${FINAL_TAG}-rc.1." --verify-tag

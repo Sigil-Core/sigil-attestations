@@ -21,6 +21,8 @@ This repository contains:
 - TypeScript verification helpers (Ed25519 / EdDSA only)
 - Unit tests validating signature and claim enforcement
 
+For the Proving Ground profile, see [`ATTESTATION-CONTRACT.md`](./ATTESTATION-CONTRACT.md). The browser and Workers-safe package root exports attestation profile verification. The Node-only proof-bundle verifier is available from `sigil-attestations/node`; the packaged `sigil-verify` command uses that Node-only surface.
+
 This repository does **not** contain private keys, signing infrastructure, policy engines, or production execution code.
 
 ---

@@ -1,24 +1,41 @@
 {
   "name": "sigil-attestations",
-  "version": "0.1.0",
+  "version": "0.2.0-rc.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "ATTESTATION-CONTRACT.md",
+    "README.md",
+    "RELEASE-CANDIDATE.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "sigil-verify": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./node": {
+      "import": "./dist/node.js",
+      "types": "./dist/node.d.ts"
     }
   },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:packed-cli": "node scripts/test-packed-cli.mjs"
   },
   "dependencies": {
+    "@sigilcore/warrant-core": "0.1.1",
     "jose": "^5.0.0"
   },
   "devDependencies": {
+    "@types/node": "^22.20.1",
     "typescript": "^5.0.0",
     "vitest": "^2.0.0"
   }
