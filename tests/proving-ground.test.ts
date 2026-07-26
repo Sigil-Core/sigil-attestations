@@ -16,7 +16,7 @@ const directories: string[] = [];
 const NOW = new Date("2030-01-01T00:00:00Z");
 const NOW_SECONDS = Math.floor(NOW.getTime() / 1000);
 const WARRANTY = "version: 2.1.0\n\n## tool_calls\nallowed: web_fetch\n";
-const INTENT = { action: "web_fetch", chainId: 1, url: "https://docs.sigilcore.com/getting-started", metadata: { job_type: "documentation" } };
+const INTENT = { action: "web_fetch", url: "https://docs.sigilcore.com/getting-started", metadata: { job_type: "documentation" } };
 
 afterEach(async () => {
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
@@ -25,7 +25,7 @@ afterEach(async () => {
 const PQC_KEY = { kty: "ML-DSA", alg: "ML-DSA-65", kid: "synthetic-pqc", publicKey: "AQIDBA", use: "sig" };
 
 // skipcq: JS-R1005 - The fixture creates one cryptographically linked offline bundle so every negative test mutates a consistent baseline.
-const makeArtifacts = async (overrides: { attestationPolicyHash?: string; audience?: string; payloadKid?: string; expiresAt?: number; warranty?: string; canonical?: unknown; jwks?: unknown; pqcKeys?: unknown; responseAttestation?: string } = {}) => {
+const makeArtifacts = async (overrides: { attestationPolicyHash?: string; audience?: string; payloadKid?: string; expiresAt?: number; warranty?: string; canonical?: unknown; jwks?: unknown; pqcKeys?: unknown; responseAttestation?: string; chainId?: number } = {}) => {
   const signer = await generateKeyPair("EdDSA");
   const operator = await generateKeyPair("EdDSA");
   const signerJwk = await exportJWK(signer.publicKey);
@@ -35,10 +35,12 @@ const makeArtifacts = async (overrides: { attestationPolicyHash?: string; audien
   const policyHash = await hashPolicy(createNodeCryptoAdapter(), policy);
   const txCommit = await hashPgCommitV1(createNodeCryptoAdapter(), INTENT);
   const intentHash = createHash("sha256").update(txCommit, "utf8").digest("hex");
-  const jwt = await new SignJWT({
+  const jwtClaims: Record<string, unknown> = {
     aud: overrides.audience ?? "sigil-sign", kid: overrides.payloadKid ?? kid, intentHash, policyHash: overrides.attestationPolicyHash ?? policyHash,
     agentId: "synthetic-agent", framework: "synthetic", provenance: "agent",
-  })
+  };
+  if (overrides.chainId !== undefined) jwtClaims.chainId = overrides.chainId;
+  const jwt = await new SignJWT(jwtClaims)
     .setProtectedHeader({ alg: "EdDSA", kid })
     .setIssuer("sigil-core")
     .setIssuedAt(NOW_SECONDS - 10)
@@ -61,7 +63,11 @@ const makeArtifacts = async (overrides: { attestationPolicyHash?: string; audien
     writeFile(join(directory, "warranty.md"), warranty),
     writeFile(join(directory, "operator-public-key.json"), JSON.stringify(operatorJwk)),
     writeFile(join(directory, "attestation.jwt"), jwt),
-    writeFile(join(directory, "request.json"), JSON.stringify({ intent: INTENT, txCommit })),
+    writeFile(join(directory, "request.json"), JSON.stringify({
+      intent: INTENT,
+      txCommit,
+      ...(overrides.chainId === undefined ? {} : { chainId: overrides.chainId }),
+    })),
     writeFile(join(directory, "response.json"), JSON.stringify({ intent_attestation: overrides.responseAttestation ?? jwt })),
     writeFile(join(directory, "jwks.json"), JSON.stringify(overrides.jwks ?? { keys: [{ ...signerJwk, kid, alg: "EdDSA", use: "sig" }] })),
     writeFile(join(directory, "pqc-keys.json"), JSON.stringify(overrides.pqcKeys ?? { keys: [PQC_KEY] })),
@@ -81,6 +87,14 @@ describe("Proving Ground verifier profile", () => {
     const result = await verifyProofBundle({ bundlePath: artifact.directory, trust: artifact.trust, now: NOW });
     expect(result.operatorSignatureValid).toBe(true);
     expect(result.authorizationExpired).toBe(false);
+    expect(result.commitment.txCommit).toBe(artifact.txCommit);
+    expect(result.claims.chainId).toBeUndefined();
+  });
+
+  it("proves the signed chain while leaving pg-commit-v1 bound only to intent", async () => {
+    const artifact = await makeArtifacts({ chainId: 1 });
+    const result = await verifyProofBundle({ bundlePath: artifact.directory, trust: artifact.trust, now: NOW });
+    expect(result.claims.chainId).toBe(1);
     expect(result.commitment.txCommit).toBe(artifact.txCommit);
   });
 
@@ -166,16 +180,36 @@ describe("Proving Ground verifier profile", () => {
   });
 
   it("rejects a request that differs only by chain", async () => {
-    const artifact = await makeArtifacts();
+    const artifact = await makeArtifacts({ chainId: 1 });
     await writeFile(join(artifact.directory, "request.json"), JSON.stringify({
-      intent: { ...INTENT, chainId: 8453 },
+      intent: INTENT,
       txCommit: artifact.txCommit,
+      chainId: 8453,
     }));
     await expect(verifyProofBundle({
       bundlePath: artifact.directory,
       trust: artifact.trust,
       now: NOW,
-    })).rejects.toThrow("does not match pg-commit-v1 intent");
+    })).rejects.toThrow("JWT chainId must exactly match request chainId");
+  });
+
+  it.each([
+    ["JWT chainId", { signed: 0, requested: 0 }, "JWT chainId must be a positive safe integer"],
+    ["JWT chainId", { signed: Number.MAX_SAFE_INTEGER + 1, requested: 1 }, "JWT chainId must be a positive safe integer"],
+    ["request chainId", { signed: 1, requested: -1 }, "request chainId must be a positive safe integer"],
+    ["request chainId", { signed: 1, requested: 1.5 }, "request chainId must be a positive safe integer"],
+    ["missing request chainId", { signed: 1, requested: undefined }, "JWT chainId must exactly match request chainId"],
+    ["missing JWT chainId", { signed: undefined, requested: 1 }, "JWT chainId must exactly match request chainId"],
+  ])("rejects invalid or unmatched %s", async (_label, chainIds, message) => {
+    const artifact = await makeArtifacts({ chainId: chainIds.signed });
+    const request: Record<string, unknown> = { intent: INTENT, txCommit: artifact.txCommit };
+    if (chainIds.requested !== undefined) request.chainId = chainIds.requested;
+    await writeFile(join(artifact.directory, "request.json"), JSON.stringify(request));
+    await expect(verifyProofBundle({
+      bundlePath: artifact.directory,
+      trust: artifact.trust,
+      now: NOW,
+    })).rejects.toThrow(message);
   });
 
   it("rejects a changed commitment, policy hash, or JWT signature", async () => {

@@ -14,6 +14,7 @@ The current Sigil Sign signer emits an EdDSA JWT with these load-bearing claims:
 | `kid` | Present in both protected header and payload, with identical values. |
 | `intentHash` | Lowercase SHA-256 hex of the request `txCommit`. |
 | `policyHash` | Lowercase SHA-256 hex of the parsed Warrant policy object. |
+| `chainId` | Optional positive safe integer. When present, it must exactly match the optional top-level request `chainId`. |
 | `agentId`, `framework`, `provenance` | Signer metadata. These do not replace request binding. |
 
 The profile intentionally does not require `payload.intent`, `targetAddress`, or any EVM-only field. Tool-call approvals bind through the commitment below.
@@ -27,6 +28,8 @@ The proxy computes `txCommit` as lowercase SHA-256 hex over the UTF-8 bytes of `
 - Only JSON values are permitted. Cycles, `undefined`, functions, symbols, bigint values, sparse arrays, accessors, and non-finite numbers reject.
 
 The verifier recomputes this commitment from `request.json.intent`, requires it to equal `request.json.txCommit`, then requires `SHA-256(txCommit)` to equal the signed `intentHash`.
+
+`request.json.chainId` is an optional top-level execution-network binding. It is not part of `pg-commit-v1`, which continues to hash only `request.json.intent`. The JWT claim and request field must either both be absent or both be positive safe integers with exactly the same value. This preserves chain-free tool-call approvals while rejecting a request moved to a different chain.
 
 ## Verification modes
 

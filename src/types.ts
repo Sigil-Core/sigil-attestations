@@ -69,7 +69,7 @@ export interface SigilTrustManifestV1 {
 
 export interface ProvingGroundVerificationOptions {
   trust: SigilTrustManifestV1;
-  request: { intent: unknown; txCommit: string };
+  request: { intent: unknown; txCommit: string; chainId?: number };
   jwks: unknown;
   mode?: VerificationMode;
   now?: Date;
@@ -79,7 +79,16 @@ export interface ProvingGroundVerificationResult {
   mode: VerificationMode;
   authorizationExpired: boolean;
   protectedHeader: Record<string, unknown>;
-  claims: { iss: string; aud: string; exp: number; iat: number; kid: string; intentHash: string; policyHash: string };
+  claims: {
+    iss: string;
+    aud: string;
+    exp: number;
+    iat: number;
+    kid: string;
+    intentHash: string;
+    policyHash: string;
+    chainId?: number;
+  };
   commitment: { txCommit: string; intentHash: string };
 }
 

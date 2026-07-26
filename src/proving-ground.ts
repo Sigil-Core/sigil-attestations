@@ -15,6 +15,34 @@ const requireInteger = (value: unknown, name: string): number => {
   return value as number;
 };
 
+interface OptionalChainId {
+  present: boolean;
+  value?: number;
+}
+
+const readOptionalChainId = (source: { chainId?: unknown }, name: string): OptionalChainId => {
+  if (!Object.prototype.hasOwnProperty.call(source, "chainId")) return { present: false };
+  if (!Number.isSafeInteger(source.chainId) || (source.chainId as number) <= 0) {
+    throw new InvalidPayloadError(`${name} must be a positive safe integer`);
+  }
+  return { present: true, value: source.chainId as number };
+};
+
+const validateMatchingChainId = (
+  payload: Record<string, unknown>,
+  request: ProvingGroundVerificationOptions["request"]
+): number | undefined => {
+  const signedChainId = readOptionalChainId(payload, "JWT chainId");
+  const requestChainId = readOptionalChainId(request, "request chainId");
+  if (
+    signedChainId.present !== requestChainId.present ||
+    (signedChainId.present && signedChainId.value !== requestChainId.value)
+  ) {
+    throw new InvalidPayloadError("JWT chainId must exactly match request chainId");
+  }
+  return signedChainId.value;
+};
+
 const resolveVerificationMode = (value: unknown): VerificationMode => {
   if (value === undefined) return "execution";
   if (value === "execution" || value === "audit") return value;
@@ -138,15 +166,26 @@ export const verifyProvingGroundAttestation = async (
   await verifyJwtSignature(jwt, options.jwks);
   const payload = decodeJwt(jwt) as Record<string, unknown>;
   const claims = validateAttestationClaims(payload, trust.issuer, trust.audience, headerKid, mode, now);
+  const chainId = validateMatchingChainId(payload, options.request);
   if (!HEX_64.test(options.request.txCommit)) throw new InvalidPayloadError("request txCommit must be lowercase SHA-256 hex");
   const adapter = webCryptoAdapter();
   const recomputedCommit = await hashPgCommitV1(adapter, options.request.intent as never);
   if (recomputedCommit !== options.request.txCommit) throw new InvalidPayloadError("request txCommit does not match pg-commit-v1 intent");
   const recomputedIntentHash = hexFromBytes(await adapter.sha256(new TextEncoder().encode(options.request.txCommit)));
   if (recomputedIntentHash !== claims.intentHash) throw new InvalidPayloadError("intentHash does not bind the request txCommit");
+  const verifiedClaims: ProvingGroundVerificationResult["claims"] = {
+    iss: claims.issuer,
+    aud: trust.audience,
+    exp: claims.exp,
+    iat: claims.iat,
+    kid: claims.payloadKid,
+    intentHash: claims.intentHash,
+    policyHash: claims.policyHash,
+  };
+  if (chainId !== undefined) verifiedClaims.chainId = chainId;
   return {
     mode, authorizationExpired: claims.authorizationExpired, protectedHeader: header as Record<string, unknown>,
-    claims: { iss: claims.issuer, aud: trust.audience, exp: claims.exp, iat: claims.iat, kid: claims.payloadKid, intentHash: claims.intentHash, policyHash: claims.policyHash },
+    claims: verifiedClaims,
     commitment: { txCommit: recomputedCommit, intentHash: recomputedIntentHash },
   };
 };
