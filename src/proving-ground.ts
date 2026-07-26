@@ -150,6 +150,25 @@ const validateAttestationClaims = (
   return { issuer: verifiedIssuer, payloadKid, exp, iat, authorizationExpired, policyHash, intentHash };
 };
 
+const verifyRequestCommitment = async (
+  request: ProvingGroundVerificationOptions["request"],
+  signedIntentHash: string
+): Promise<ProvingGroundVerificationResult["commitment"]> => {
+  if (!HEX_64.test(request.txCommit)) {
+    throw new InvalidPayloadError("request txCommit must be lowercase SHA-256 hex");
+  }
+  const adapter = webCryptoAdapter();
+  const recomputedCommit = await hashPgCommitV1(adapter, request.intent as never);
+  if (recomputedCommit !== request.txCommit) {
+    throw new InvalidPayloadError("request txCommit does not match pg-commit-v1 intent");
+  }
+  const recomputedIntentHash = hexFromBytes(await adapter.sha256(new TextEncoder().encode(request.txCommit)));
+  if (recomputedIntentHash !== signedIntentHash) {
+    throw new InvalidPayloadError("intentHash does not bind the request txCommit");
+  }
+  return { txCommit: recomputedCommit, intentHash: recomputedIntentHash };
+};
+
 /** Verify the CC-1 profile without changing the legacy strict verifier. */
 export const verifyProvingGroundAttestation = async (
   jwt: string,
@@ -167,12 +186,7 @@ export const verifyProvingGroundAttestation = async (
   const payload = decodeJwt(jwt) as Record<string, unknown>;
   const claims = validateAttestationClaims(payload, trust.issuer, trust.audience, headerKid, mode, now);
   const chainId = validateMatchingChainId(payload, options.request);
-  if (!HEX_64.test(options.request.txCommit)) throw new InvalidPayloadError("request txCommit must be lowercase SHA-256 hex");
-  const adapter = webCryptoAdapter();
-  const recomputedCommit = await hashPgCommitV1(adapter, options.request.intent as never);
-  if (recomputedCommit !== options.request.txCommit) throw new InvalidPayloadError("request txCommit does not match pg-commit-v1 intent");
-  const recomputedIntentHash = hexFromBytes(await adapter.sha256(new TextEncoder().encode(options.request.txCommit)));
-  if (recomputedIntentHash !== claims.intentHash) throw new InvalidPayloadError("intentHash does not bind the request txCommit");
+  const commitment = await verifyRequestCommitment(options.request, claims.intentHash);
   const verifiedClaims: ProvingGroundVerificationResult["claims"] = {
     iss: claims.issuer,
     aud: trust.audience,
@@ -186,6 +200,6 @@ export const verifyProvingGroundAttestation = async (
   return {
     mode, authorizationExpired: claims.authorizationExpired, protectedHeader: header as Record<string, unknown>,
     claims: verifiedClaims,
-    commitment: { txCommit: recomputedCommit, intentHash: recomputedIntentHash },
+    commitment,
   };
 };
