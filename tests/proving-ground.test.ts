@@ -16,7 +16,7 @@ const directories: string[] = [];
 const NOW = new Date("2030-01-01T00:00:00Z");
 const NOW_SECONDS = Math.floor(NOW.getTime() / 1000);
 const WARRANTY = "version: 2.1.0\n\n## tool_calls\nallowed: web_fetch\n";
-const INTENT = { action: "web_fetch", url: "https://docs.sigilcore.com/getting-started", metadata: { job_type: "documentation" } };
+const INTENT = { action: "web_fetch", chainId: 1, url: "https://docs.sigilcore.com/getting-started", metadata: { job_type: "documentation" } };
 
 afterEach(async () => {
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
@@ -25,11 +25,11 @@ afterEach(async () => {
 const PQC_KEY = { kty: "ML-DSA", alg: "ML-DSA-65", kid: "synthetic-pqc", publicKey: "AQIDBA", use: "sig" };
 
 // skipcq: JS-R1005 - The fixture creates one cryptographically linked offline bundle so every negative test mutates a consistent baseline.
-const makeArtifacts = async (overrides: { attestationPolicyHash?: string; audience?: string; payloadKid?: string; expiresAt?: number; warranty?: string; operatorJwk?: Record<string, unknown>; canonical?: unknown; jwks?: unknown; pqcKeys?: unknown; responseAttestation?: string } = {}) => {
+const makeArtifacts = async (overrides: { attestationPolicyHash?: string; audience?: string; payloadKid?: string; expiresAt?: number; warranty?: string; canonical?: unknown; jwks?: unknown; pqcKeys?: unknown; responseAttestation?: string } = {}) => {
   const signer = await generateKeyPair("EdDSA");
   const operator = await generateKeyPair("EdDSA");
   const signerJwk = await exportJWK(signer.publicKey);
-  const operatorJwk = (overrides.operatorJwk ?? await exportJWK(operator.publicKey)) as Record<string, unknown>;
+  const operatorJwk = await exportJWK(operator.publicKey) as Record<string, unknown>;
   const kid = "synthetic-signer";
   const policy = parsePolicyMarkdown(overrides.warranty ?? WARRANTY);
   const policyHash = await hashPolicy(createNodeCryptoAdapter(), policy);
@@ -163,6 +163,19 @@ describe("Proving Ground verifier profile", () => {
     const artifact = await makeArtifacts();
     await writeFile(join(artifact.directory, "request.json"), JSON.stringify({ intent: { ...INTENT, action: "email.send" }, txCommit: artifact.txCommit }));
     await expect(verifyProofBundle({ bundlePath: artifact.directory, trust: artifact.trust, now: NOW })).rejects.toThrow("does not match pg-commit-v1 intent");
+  });
+
+  it("rejects a request that differs only by chain", async () => {
+    const artifact = await makeArtifacts();
+    await writeFile(join(artifact.directory, "request.json"), JSON.stringify({
+      intent: { ...INTENT, chainId: 8453 },
+      txCommit: artifact.txCommit,
+    }));
+    await expect(verifyProofBundle({
+      bundlePath: artifact.directory,
+      trust: artifact.trust,
+      now: NOW,
+    })).rejects.toThrow("does not match pg-commit-v1 intent");
   });
 
   it("rejects a changed commitment, policy hash, or JWT signature", async () => {
