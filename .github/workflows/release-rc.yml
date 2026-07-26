@@ -1,0 +1,75 @@
+name: Release immutable verifier candidate
+
+on:
+  push:
+    tags:
+      - "v*-rc.*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npm run test:packed-cli
+      - name: Require the tag to match package version and exact workflow commit
+        run: |
+          test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+          test "$(git rev-parse "refs/tags/${GITHUB_REF_NAME}^{commit}")" = "$GITHUB_SHA"
+      - id: package
+        run: |
+          npm pack
+          package_file="$(find . -maxdepth 1 -name 'sigil-attestations-*.tgz' -print -quit)"
+          test -n "$package_file"
+          sha256sum "$package_file" > "${package_file}.sha256"
+          printf 'package_file=%s\n' "$package_file" >> "$GITHUB_OUTPUT"
+      - name: Upload tested candidate package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verifier-candidate-${{ github.ref_name }}
+          path: |
+            ${{ steps.package.outputs.package_file }}
+            ${{ steps.package.outputs.package_file }}.sha256
+            RELEASE-CANDIDATE.md
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download tested candidate package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: verifier-candidate-${{ github.ref_name }}
+          path: .
+      - name: Attest immutable package artifact
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6
+        with:
+          subject-path: sigil-attestations-*.tgz
+      - name: Create immutable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME" sigil-attestations-*.tgz
+          sigil-attestations-*.tgz.sha256 --title "$GITHUB_REF_NAME"
+          --notes-file RELEASE-CANDIDATE.md --verify-tag

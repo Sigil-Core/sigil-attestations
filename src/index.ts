@@ -1,4 +1,11 @@
 export { verifyIntentAttestation } from "./verify.js";
+export { verifyProvingGroundAttestation } from "./proving-ground.js";
+export {
+  fingerprintEd25519RawKey,
+  fingerprintJwk,
+  fingerprintPqcRawKey,
+  validateTrustManifest,
+} from "./trust.js";
 export {
   SigilVerificationError,
   InvalidAlgorithmError,
@@ -12,4 +19,10 @@ export type {
   ExecutionGrantClaim,
   VerifiedAttestation,
   VerifyIntentAttestationOptions,
+  ProvingGroundVerificationOptions,
+  ProvingGroundVerificationResult,
+  SigilTrustManifestV1,
+  TrustAttestationKey,
+  TrustPqcKey,
+  VerificationMode,
 } from "./types.js";

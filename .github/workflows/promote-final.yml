@@ -1,0 +1,86 @@
+name: Promote immutable verifier release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  attestations: read
+
+jobs:
+  promote:
+    if: ${{ !contains(github.ref_name, '-rc.') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Resolve the one immutable release candidate at this commit
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FINAL_TAG: ${{ github.ref_name }}
+        run: |
+          git fetch --force --tags origin
+          if ! [[ "$FINAL_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Final tag must use vX.Y.Z: $FINAL_TAG"
+            exit 1
+          fi
+          final_commit="$(git rev-parse "${FINAL_TAG}^{commit}")"
+          mapfile -t candidate_tags < <(
+            git tag --points-at "$final_commit" --list "${FINAL_TAG}-rc.*" |
+              grep -E "^${FINAL_TAG}-rc\.[0-9]+$" || true
+          )
+          if [ "${#candidate_tags[@]}" -ne 1 ]; then
+            echo "Expected exactly one immutable release candidate at $final_commit, found ${#candidate_tags[@]}"
+            printf '%s\n' "${candidate_tags[@]}"
+            exit 1
+          fi
+          candidate_tag="${candidate_tags[0]}"
+          test "$final_commit" = "$(git rev-parse "${candidate_tag}^{commit}")"
+          if ! gh release view "$candidate_tag" > /dev/null; then
+            echo "Missing immutable release candidate: $candidate_tag"
+            exit 1
+          fi
+          printf 'tag=%s\n' "$candidate_tag" >> "$GITHUB_OUTPUT"
+          printf 'commit=%s\n' "$final_commit" >> "$GITHUB_OUTPUT"
+      - name: Refuse an existing final release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FINAL_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$FINAL_TAG"; then
+            echo "Release already exists: $FINAL_TAG"
+            exit 1
+          fi
+      - name: Download and verify the immutable rc artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_TAG: ${{ steps.candidate.outputs.tag }}
+          CANDIDATE_COMMIT: ${{ steps.candidate.outputs.commit }}
+        run: |
+          artifact="sigil-attestations-${CANDIDATE_TAG#v}.tgz"
+          checksum="${artifact}.sha256"
+          mkdir release-assets
+          gh release download "$CANDIDATE_TAG" --pattern "$artifact" --pattern "$checksum" --dir release-assets
+          cd release-assets
+          test -f "$artifact"
+          test -f "$checksum"
+          sha256sum --check "$checksum"
+          gh attestation verify "$artifact" \
+            --repo Sigil-Core/sigil-attestations \
+            --signer-workflow Sigil-Core/sigil-attestations/.github/workflows/release-rc.yml \
+            --source-ref "refs/tags/$CANDIDATE_TAG" \
+            --source-digest "$CANDIDATE_COMMIT" \
+            --deny-self-hosted-runners
+      - name: Create final release from the unchanged rc artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FINAL_TAG: ${{ github.ref_name }}
+          CANDIDATE_TAG: ${{ steps.candidate.outputs.tag }}
+        run: >-
+          gh release create "$FINAL_TAG" "release-assets/sigil-attestations-${CANDIDATE_TAG#v}.tgz"
+          "release-assets/sigil-attestations-${CANDIDATE_TAG#v}.tgz.sha256" --title "$FINAL_TAG"
+          --notes "Promoted unchanged artifact from ${CANDIDATE_TAG}." --verify-tag
