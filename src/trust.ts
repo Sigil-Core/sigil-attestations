@@ -45,6 +45,13 @@ const requireDate = (value: unknown, field: string): string => {
   return text;
 };
 
+const requireVerifiedAlgorithms = (value: unknown): ["EdDSA", ...string[]] => {
+  if (!Array.isArray(value) || value.length === 0 || value[0] !== "EdDSA" || value.some((item) => typeof item !== "string")) {
+    throw new InvalidPayloadError("Trust manifest verifiedAlgorithms must begin with EdDSA and contain only strings");
+  }
+  return value as ["EdDSA", ...string[]];
+};
+
 /** RFC 7638 SHA-256 thumbprint for an Ed25519 OKP public JWK. */
 export const fingerprintJwk = async (jwk: unknown): Promise<string> => {
   if (!isRecord(jwk)) throw new InvalidPayloadError("JWK must be an object");
@@ -75,9 +82,7 @@ export const validateTrustManifest = (value: unknown, now = new Date()): SigilTr
   if (value.schema !== "sigil-trust/v1") throw new InvalidPayloadError("Unsupported trust manifest schema");
   const issuer = requireString(value.issuer, "issuer");
   if (value.audience !== "sigil-sign") throw new InvalidPayloadError("Trust manifest audience must be sigil-sign");
-  if (!Array.isArray(value.verifiedAlgorithms) || !value.verifiedAlgorithms.includes("EdDSA")) {
-    throw new InvalidPayloadError("Trust manifest must verify EdDSA");
-  }
+  const verifiedAlgorithms = requireVerifiedAlgorithms(value.verifiedAlgorithms);
   if (!Array.isArray(value.informationalAlgorithms) || value.informationalAlgorithms.some((item) => typeof item !== "string")) {
     throw new InvalidPayloadError("Trust manifest informationalAlgorithms is invalid");
   }
@@ -110,7 +115,7 @@ export const validateTrustManifest = (value: unknown, now = new Date()): SigilTr
   if (!HEX_64.test(pqcFingerprint)) throw new InvalidPayloadError("Trust PQC fingerprint is invalid");
   return {
     schema: "sigil-trust/v1", issuer, audience: "sigil-sign",
-    verifiedAlgorithms: value.verifiedAlgorithms as ["EdDSA", ...string[]],
+    verifiedAlgorithms,
     informationalAlgorithms: value.informationalAlgorithms as string[],
     notBefore, notAfter, reviewAfter, revokedAt: null, attestationKeys,
     operatorKey: { fingerprint }, pqcKey: { kid: pqcKid, fingerprint: pqcFingerprint },

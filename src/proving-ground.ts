@@ -57,6 +57,71 @@ const assertCanonicalCompactJwt = (jwt: string): void => {
   }
 };
 
+const verifyJwtSignature = async (jwt: string, jwks: unknown): Promise<void> => {
+  try {
+    await compactVerify(jwt, createLocalJWKSet(jwks as Parameters<typeof createLocalJWKSet>[0]), { algorithms: ["EdDSA"] });
+  } catch (error) {
+    throw new InvalidSignatureError(error instanceof Error ? error.message : "JWT signature verification failed");
+  }
+};
+
+const validateIssuer = (payload: Record<string, unknown>, expectedIssuer: string): string => {
+  const issuer = requireString(payload.iss, "iss");
+  if (issuer !== expectedIssuer) throw new InvalidSignatureError("JWT issuer does not match the trust manifest");
+  return issuer;
+};
+
+const validateAudience = (value: unknown, expectedAudience: string): void => {
+  const includesAudience = value === expectedAudience || (Array.isArray(value) && value.includes(expectedAudience));
+  if (!includesAudience) throw new InvalidPayloadError("JWT audience must include sigil-sign");
+};
+
+const validateMatchingKid = (payload: Record<string, unknown>, headerKid: string): string => {
+  const payloadKid = requireString(payload.kid, "JWT payload kid");
+  if (payloadKid !== headerKid) throw new InvalidSignatureError("JWT header and payload kid do not match");
+  return payloadKid;
+};
+
+const readAttestationLifetime = (payload: Record<string, unknown>): { exp: number; iat: number } => {
+  const exp = requireInteger(payload.exp, "exp");
+  const iat = requireInteger(payload.iat, "iat");
+  if (exp <= iat) throw new InvalidPayloadError("attestation lifetime must be between one and 60 seconds");
+  if (exp - iat > 60) throw new InvalidPayloadError("attestation lifetime must be between one and 60 seconds");
+  return { exp, iat };
+};
+
+const validateAttestationTime = (exp: number, iat: number, mode: VerificationMode, now: Date): boolean => {
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+  if (iat > nowSeconds + 5) throw new InvalidPayloadError("iat claim is beyond the five-second clock tolerance");
+  const authorizationExpired = exp <= nowSeconds;
+  if (mode === "execution" && authorizationExpired) throw new ExpiredAttestationError();
+  return authorizationExpired;
+};
+
+const requireSha256Hex = (value: unknown, name: string): string => {
+  const hash = requireString(value, name);
+  if (!HEX_64.test(hash)) throw new InvalidPayloadError(`${name} must be lowercase SHA-256 hex`);
+  return hash;
+};
+
+const validateAttestationClaims = (
+  payload: Record<string, unknown>,
+  issuer: string,
+  audience: string,
+  headerKid: string,
+  mode: VerificationMode,
+  now: Date
+) => {
+  const verifiedIssuer = validateIssuer(payload, issuer);
+  validateAudience(payload.aud, audience);
+  const payloadKid = validateMatchingKid(payload, headerKid);
+  const { exp, iat } = readAttestationLifetime(payload);
+  const authorizationExpired = validateAttestationTime(exp, iat, mode, now);
+  const policyHash = requireSha256Hex(payload.policyHash, "policyHash");
+  const intentHash = requireSha256Hex(payload.intentHash, "intentHash");
+  return { issuer: verifiedIssuer, payloadKid, exp, iat, authorizationExpired, policyHash, intentHash };
+};
+
 /** Verify the CC-1 profile without changing the legacy strict verifier. */
 export const verifyProvingGroundAttestation = async (
   jwt: string,
@@ -70,40 +135,18 @@ export const verifyProvingGroundAttestation = async (
   if (header.alg !== "EdDSA") throw new InvalidAlgorithmError(`Expected alg=EdDSA, got alg=${header.alg}`);
   const headerKid = requireString(header.kid, "JWT header kid");
   await assertTrustedBundleKeys(trust, options.jwks, undefined, headerKid);
-  try {
-    await compactVerify(jwt, createLocalJWKSet(options.jwks as Parameters<typeof createLocalJWKSet>[0]), { algorithms: ["EdDSA"] });
-  } catch (error) {
-    throw new InvalidSignatureError(error instanceof Error ? error.message : "JWT signature verification failed");
-  }
+  await verifyJwtSignature(jwt, options.jwks);
   const payload = decodeJwt(jwt) as Record<string, unknown>;
-  const issuer = requireString(payload.iss, "iss");
-  if (issuer !== trust.issuer) throw new InvalidSignatureError("JWT issuer does not match the trust manifest");
-  const audience = payload.aud;
-  if (audience !== trust.audience && !(Array.isArray(audience) && audience.includes(trust.audience))) {
-    throw new InvalidPayloadError("JWT audience must include sigil-sign");
-  }
-  const payloadKid = requireString(payload.kid, "JWT payload kid");
-  if (payloadKid !== headerKid) throw new InvalidSignatureError("JWT header and payload kid do not match");
-  const exp = requireInteger(payload.exp, "exp");
-  const iat = requireInteger(payload.iat, "iat");
-  if (exp <= iat || exp - iat > 60) throw new InvalidPayloadError("attestation lifetime must be between one and 60 seconds");
-  const nowSeconds = Math.floor(now.getTime() / 1000);
-  if (iat > nowSeconds + 5) throw new InvalidPayloadError("iat claim is beyond the five-second clock tolerance");
-  const authorizationExpired = exp <= nowSeconds;
-  if (mode === "execution" && authorizationExpired) throw new ExpiredAttestationError();
-  const policyHash = requireString(payload.policyHash, "policyHash");
-  const intentHash = requireString(payload.intentHash, "intentHash");
-  if (!HEX_64.test(policyHash)) throw new InvalidPayloadError("policyHash must be lowercase SHA-256 hex");
-  if (!HEX_64.test(intentHash)) throw new InvalidPayloadError("intentHash must be lowercase SHA-256 hex");
+  const claims = validateAttestationClaims(payload, trust.issuer, trust.audience, headerKid, mode, now);
   if (!HEX_64.test(options.request.txCommit)) throw new InvalidPayloadError("request txCommit must be lowercase SHA-256 hex");
   const adapter = webCryptoAdapter();
   const recomputedCommit = await hashPgCommitV1(adapter, options.request.intent as never);
   if (recomputedCommit !== options.request.txCommit) throw new InvalidPayloadError("request txCommit does not match pg-commit-v1 intent");
   const recomputedIntentHash = hexFromBytes(await adapter.sha256(new TextEncoder().encode(options.request.txCommit)));
-  if (recomputedIntentHash !== intentHash) throw new InvalidPayloadError("intentHash does not bind the request txCommit");
+  if (recomputedIntentHash !== claims.intentHash) throw new InvalidPayloadError("intentHash does not bind the request txCommit");
   return {
-    mode, authorizationExpired, protectedHeader: header as Record<string, unknown>,
-    claims: { iss: issuer, aud: trust.audience, exp, iat, kid: payloadKid, intentHash, policyHash },
+    mode, authorizationExpired: claims.authorizationExpired, protectedHeader: header as Record<string, unknown>,
+    claims: { iss: claims.issuer, aud: trust.audience, exp: claims.exp, iat: claims.iat, kid: claims.payloadKid, intentHash: claims.intentHash, policyHash: claims.policyHash },
     commitment: { txCommit: recomputedCommit, intentHash: recomputedIntentHash },
   };
 };

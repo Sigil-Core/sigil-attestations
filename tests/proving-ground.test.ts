@@ -9,7 +9,7 @@ import { createNodeCryptoAdapter } from "@sigilcore/warrant-core/crypto/node";
 import { verifyProvingGroundAttestation } from "../src/index.js";
 import { verifyProofBundle } from "../src/node.js";
 import { CANONICALIZER_VERSION, CANONICAL_POLICY_ENVELOPE_SCHEMA } from "../src/bundle.js";
-import { fingerprintEd25519RawKey, fingerprintJwk, fingerprintPqcRawKey } from "../src/trust.js";
+import { fingerprintEd25519RawKey, fingerprintJwk, fingerprintPqcRawKey, validateTrustManifest } from "../src/trust.js";
 import type { SigilTrustManifestV1, VerificationMode } from "../src/types.js";
 
 const directories: string[] = [];
@@ -105,6 +105,15 @@ describe("Proving Ground verifier profile", () => {
       request,
       now: new Date("invalid"),
     })).rejects.toThrow("now must be a valid Date");
+  });
+
+  it.each([
+    ["a non-string value", ["EdDSA", null]],
+    ["an array without EdDSA first", ["RS256", "EdDSA"]],
+  ])("rejects verifiedAlgorithms with %s", async (_label, verifiedAlgorithms) => {
+    const artifact = await makeArtifacts();
+    const trust = { ...artifact.trust, verifiedAlgorithms };
+    expect(() => validateTrustManifest(trust, NOW)).toThrow("verifiedAlgorithms must begin with EdDSA and contain only strings");
   });
 
   it("rejects a tampered request intent", async () => {
