@@ -127,7 +127,13 @@ export const verifyProofBundle = async (options: VerifyBundleOptions): Promise<V
   const attestation = await verifyProvingGroundAttestation(jwt, {
     trust,
     jwks,
-    request: { intent: request.intent, txCommit: request.txCommit },
+    request: {
+      intent: request.intent,
+      txCommit: request.txCommit,
+      ...(Object.prototype.hasOwnProperty.call(request, "chainId")
+        ? { chainId: request.chainId as number }
+        : {}),
+    },
     mode: options.mode,
     now,
   });
