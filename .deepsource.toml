@@ -1,0 +1,12 @@
+version = 1
+
+test_patterns = ["tests/**"]
+
+[[analyzers]]
+name = "javascript"
+enabled = true
+
+  [analyzers.meta]
+  environment = ["nodejs", "browser", "vitest"]
+  module_system = "es-modules"
+  cyclomatic_complexity_threshold = "very-high"

@@ -13,7 +13,15 @@ interface Arguments {
   json: boolean;
 }
 
-const usage = `Usage: sigil-verify --bundle <directory> --trust <sigil-trust.v1.json> [--mode execution|audit] [--json]\n\nThe trust manifest must be acquired separately from the proof bundle.`;
+const usage = "Usage: sigil-verify --bundle <directory> --trust <sigil-trust.v1.json> [--mode execution|audit] [--json]\n\n" +
+  "The trust manifest must be acquired separately from the proof bundle.";
+
+const writeLine = (message: string): void => {
+  process.stdout.write(`${message}\n`);
+};
+const writeError = (message: string): void => {
+  process.stderr.write(`${message}\n`);
+};
 
 const parseArgs = (argv: string[]): Arguments => {
   const result: Arguments = { mode: "execution", json: false };
@@ -53,23 +61,23 @@ const main = async (): Promise<void> => {
     policyHash: result.derivedPolicyHash,
     intentHash: result.commitment.intentHash,
   };
-  if (args.json) console.log(JSON.stringify(output));
+  if (args.json) writeLine(JSON.stringify(output));
   else {
-    console.log(output.authorizationExpired ? "Historical proof verified. Authorization expired." : "Proof bundle verified and currently executable.");
-    console.log(`Mode: ${output.mode}`);
-    console.log(`Authorization expired: ${output.authorizationExpired ? "yes" : "no"}`);
-    console.log(`Policy hash: ${output.policyHash}`);
+    writeLine(output.authorizationExpired ? "Historical proof verified. Authorization expired." : "Proof bundle verified and currently executable.");
+    writeLine(`Mode: ${output.mode}`);
+    writeLine(`Authorization expired: ${output.authorizationExpired ? "yes" : "no"}`);
+    writeLine(`Policy hash: ${output.policyHash}`);
   }
 };
 
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
-  console.log(usage);
+  writeLine(usage);
 } else {
   main().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     const code = error instanceof SigilVerificationError ? error.code : "INVALID_ARGUMENT";
-    if (process.argv.includes("--json")) console.error(JSON.stringify({ ok: false, code, error: message }));
-    else console.error(`Verification failed [${code}]: ${message}`);
+    if (process.argv.includes("--json")) writeError(JSON.stringify({ ok: false, code, error: message }));
+    else writeError(`Verification failed [${code}]: ${message}`);
     process.exitCode = 1;
   });
 }

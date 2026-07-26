@@ -27,7 +27,7 @@ const isCanonicalBase64url = (segment: string): boolean => {
   try {
     const padding = "=".repeat((4 - (segment.length % 4)) % 4);
     const binary = atob(segment.replace(/-/g, "+").replace(/_/g, "/") + padding);
-    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "") === segment;
+    return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "") === segment;
   } catch {
     return false;
   }
