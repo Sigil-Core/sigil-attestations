@@ -86,6 +86,7 @@ export const fingerprintPqcRawKey = async (encodedKey: string): Promise<string> 
   return hexFromBytes(await sha256(raw));
 };
 
+// skipcq: JS-R1005 - This is the single ordered fail-closed trust boundary for manifest schema, lifetime, and key provenance.
 export const validateTrustManifest = (value: unknown, now = new Date()): SigilTrustManifestV1 => {
   const validationTime = requireValidClock(now);
   if (!isRecord(value)) throw new InvalidPayloadError("Trust manifest must be an object");
@@ -132,6 +133,7 @@ export const validateTrustManifest = (value: unknown, now = new Date()): SigilTr
   };
 };
 
+// skipcq: JS-R1005 - Each JWKS entry must be exhaustively bound to the manifest before the requested attestation key is accepted.
 export const assertTrustedBundleKeys = async (
   trust: SigilTrustManifestV1,
   jwks: unknown,
@@ -167,6 +169,7 @@ export const assertTrustedBundleKeys = async (
   }
 };
 
+// skipcq: JS-R1005 - PQC provenance has a single explicit key-selection and fingerprint boundary to avoid a weaker fallback path.
 export const assertTrustedInformationalPqcKey = async (
   trust: SigilTrustManifestV1,
   pqcKeys: unknown

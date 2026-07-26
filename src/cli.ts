@@ -23,6 +23,7 @@ const writeError = (message: string): void => {
   process.stderr.write(`${message}\n`);
 };
 
+// skipcq: JS-R1005 - This small CLI parser centralizes mutually dependent flags so missing and option-looking values fail before file access.
 const parseArgs = (argv: string[]): Arguments => {
   const result: Arguments = { mode: "execution", json: false };
   for (let index = 0; index < argv.length; index += 1) {

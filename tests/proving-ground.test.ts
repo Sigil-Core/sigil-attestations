@@ -24,6 +24,7 @@ afterEach(async () => {
 
 const PQC_KEY = { kty: "ML-DSA", alg: "ML-DSA-65", kid: "synthetic-pqc", publicKey: "AQIDBA", use: "sig" };
 
+// skipcq: JS-R1005 - The fixture creates one cryptographically linked offline bundle so every negative test mutates a consistent baseline.
 const makeArtifacts = async (overrides: { attestationPolicyHash?: string; audience?: string; payloadKid?: string; expiresAt?: number; warranty?: string; operatorJwk?: Record<string, unknown>; canonical?: unknown; jwks?: unknown; pqcKeys?: unknown; responseAttestation?: string } = {}) => {
   const signer = await generateKeyPair("EdDSA");
   const operator = await generateKeyPair("EdDSA");

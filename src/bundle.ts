@@ -47,6 +47,7 @@ const parseJson = (text: string, name: string): Record<string, unknown> => {
   }
 };
 
+// skipcq: JS-R1005 - This centralized envelope guard preserves the canonical policy boundary before any signature or hash verification.
 const parseCanonicalPolicyEnvelope = (value: Record<string, unknown>): Record<string, unknown> => {
   if (value.schema !== CANONICAL_POLICY_ENVELOPE_SCHEMA || value.canonicalizer !== CANONICALIZER_VERSION) {
     throw new InvalidPayloadError("policy.canonical.json has an unsupported canonicalizer envelope");
@@ -57,6 +58,7 @@ const parseCanonicalPolicyEnvelope = (value: Record<string, unknown>): Record<st
   return value.policy as Record<string, unknown>;
 };
 
+// skipcq: JS-R1005 - This ordered fail-closed signature gate keeps all warranty key and signature checks auditable in one boundary.
 const verifyOperatorSignature = (warranty: string, operatorKey: Record<string, unknown>): void => {
   const { unsigned, signature } = splitSignatureBlock(warranty);
   if (!signature) throw new InvalidPayloadError("warranty.md does not contain an operator signature");
@@ -81,6 +83,7 @@ const verifyOperatorSignature = (warranty: string, operatorKey: Record<string, u
  * Verifies an unpacked proof bundle. The caller supplies trust separately; this
  * function intentionally never reads a trust file from the bundle directory.
  */
+// skipcq: JS-R1005 - This offline verifier intentionally sequences trust, bundle, signature, policy, and commitment checks fail-closed.
 export const verifyProofBundle = async (options: VerifyBundleOptions): Promise<VerifyBundleResult> => {
   const now = options.now ?? new Date();
   const trust = validateTrustManifest(options.trust, now);
