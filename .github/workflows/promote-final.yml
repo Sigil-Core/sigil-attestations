@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  attestations: read
 
 jobs:
   promote:
@@ -44,6 +45,7 @@ jobs:
             exit 1
           fi
           printf 'tag=%s\n' "$candidate_tag" >> "$GITHUB_OUTPUT"
+          printf 'commit=%s\n' "$final_commit" >> "$GITHUB_OUTPUT"
       - name: Refuse an existing final release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -57,6 +59,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_TAG: ${{ steps.candidate.outputs.tag }}
+          CANDIDATE_COMMIT: ${{ steps.candidate.outputs.commit }}
         run: |
           artifact="sigil-attestations-${CANDIDATE_TAG#v}.tgz"
           checksum="${artifact}.sha256"
@@ -66,6 +69,12 @@ jobs:
           test -f "$artifact"
           test -f "$checksum"
           sha256sum --check "$checksum"
+          gh attestation verify "$artifact" \
+            --repo Sigil-Core/sigil-attestations \
+            --signer-workflow Sigil-Core/sigil-attestations/.github/workflows/release-rc.yml \
+            --source-ref "refs/tags/$CANDIDATE_TAG" \
+            --source-digest "$CANDIDATE_COMMIT" \
+            --deny-self-hosted-runners
       - name: Create final release from the unchanged rc artifact
         env:
           GH_TOKEN: ${{ github.token }}

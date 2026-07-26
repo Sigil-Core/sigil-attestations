@@ -1,10 +1,11 @@
 import { build } from "esbuild";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("browser and Workers root import", () => {
   it("bundles the public root without Node-only modules", async () => {
     const result = await build({
-      entryPoints: [new URL("../src/index.ts", import.meta.url).pathname],
+      entryPoints: [fileURLToPath(new URL("../src/index.ts", import.meta.url))],
       bundle: true,
       format: "esm",
       platform: "browser",

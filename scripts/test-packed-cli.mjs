@@ -2,10 +2,11 @@ import { execFile } from "node:child_process";
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const repository = resolve(new URL("..", import.meta.url).pathname);
+const repository = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const stagingDirectory = await mkdtemp(join(tmpdir(), "sigil-attestations-pack-"));
 const consumerDirectory = await mkdtemp(join(tmpdir(), "sigil-attestations-consumer-"));
 
@@ -18,6 +19,13 @@ try {
   const binary = join(consumerDirectory, "node_modules", ".bin", "sigil-verify");
   const { stdout } = await execFileAsync(binary, ["--help"], { cwd: consumerDirectory });
   if (!stdout.includes("Usage: sigil-verify")) throw new Error("packed sigil-verify did not print its usage");
+  await execFileAsync(binary, ["--bundle", "--trust", "trust.json"], { cwd: consumerDirectory })
+    .then(() => { throw new Error("sigil-verify accepted an option as a --bundle value"); })
+    .catch((error) => {
+      if (!(error instanceof Error) || !String(error?.stderr ?? "").includes("Missing value for --bundle")) {
+        throw error;
+      }
+    });
   process.stdout.write("packed sigil-verify install and invocation passed\n");
 } finally {
   await Promise.all([

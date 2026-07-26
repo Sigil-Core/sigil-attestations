@@ -11,7 +11,7 @@ import {
 import { createNodeCryptoAdapter } from "@sigilcore/warrant-core/crypto/node";
 import { InvalidPayloadError, InvalidSignatureError } from "./errors.js";
 import { verifyProvingGroundAttestation } from "./proving-ground.js";
-import { assertTrustedBundleKeys, assertTrustedInformationalPqcKey } from "./trust.js";
+import { assertTrustedBundleKeys, assertTrustedInformationalPqcKey, validateTrustManifest } from "./trust.js";
 import type { VerifyBundleOptions, VerifyBundleResult } from "./types.js";
 
 const requiredFiles = [
@@ -82,6 +82,8 @@ const verifyOperatorSignature = (warranty: string, operatorKey: Record<string, u
  * function intentionally never reads a trust file from the bundle directory.
  */
 export const verifyProofBundle = async (options: VerifyBundleOptions): Promise<VerifyBundleResult> => {
+  const now = options.now ?? new Date();
+  const trust = validateTrustManifest(options.trust, now);
   await Promise.all(requiredFiles.map((name) => readUtf8(options.bundlePath, name)));
   const [warranty, operatorText, jwt, requestText, responseText, jwksText, pqcKeysText, canonicalText] = await Promise.all([
     readUtf8(options.bundlePath, "warranty.md"),
@@ -107,8 +109,8 @@ export const verifyProofBundle = async (options: VerifyBundleOptions): Promise<V
   }
   const header = decodeProtectedHeader(jwt.trim());
   if (typeof header.kid !== "string") throw new InvalidPayloadError("attestation JWT header must contain kid");
-  await assertTrustedBundleKeys(options.trust, jwks, operatorKey, header.kid);
-  await assertTrustedInformationalPqcKey(options.trust, pqcKeys);
+  await assertTrustedBundleKeys(trust, jwks, operatorKey, header.kid);
+  await assertTrustedInformationalPqcKey(trust, pqcKeys);
   verifyOperatorSignature(warranty, operatorKey);
   const parsedPolicy = parsePolicyMarkdown(warranty);
   if (canonicalizePolicyObject(parsedPolicy) !== canonicalizePolicyObject(suppliedCanonical)) {
@@ -120,11 +122,11 @@ export const verifyProofBundle = async (options: VerifyBundleOptions): Promise<V
     throw new InvalidPayloadError("policy.canonical.json hash does not match warranty.md");
   }
   const attestation = await verifyProvingGroundAttestation(jwt.trim(), {
-    trust: options.trust,
+    trust,
     jwks,
     request: { intent: request.intent, txCommit: request.txCommit },
     mode: options.mode,
-    now: options.now,
+    now,
   });
   if (derivedPolicyHash !== attestation.claims.policyHash) {
     throw new InvalidPayloadError("Derived policyHash does not match the attestation");

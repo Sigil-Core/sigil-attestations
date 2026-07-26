@@ -30,7 +30,7 @@ const parseArgs = (argv: string[]): Arguments => {
     if (argument === "--json") result.json = true;
     else if (argument === "--bundle" || argument === "--trust" || argument === "--mode") {
       const value = argv[index + 1];
-      if (!value) throw new Error(`Missing value for ${argument}`);
+      if (!value || value.startsWith("-")) throw new Error(`Missing value for ${argument}`);
       if (argument === "--bundle") result.bundle = value;
       if (argument === "--trust") result.trust = value;
       if (argument === "--mode") {

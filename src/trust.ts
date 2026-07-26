@@ -4,6 +4,7 @@ import type { SigilTrustManifestV1 } from "./types.js";
 
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
 const HEX_64 = /^[a-f0-9]{64}$/;
+const ISO_8601_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
@@ -39,10 +40,18 @@ const requireString = (value: unknown, field: string): string => {
 
 const requireDate = (value: unknown, field: string): string => {
   const text = requireString(value, field);
-  if (!Number.isFinite(Date.parse(text))) {
+  const calendarDate = text.slice(0, 10);
+  if (!ISO_8601_TIMESTAMP.test(text) || !Number.isFinite(Date.parse(text)) || new Date(`${calendarDate}T00:00:00Z`).toISOString().slice(0, 10) !== calendarDate) {
     throw new InvalidPayloadError(`Trust manifest ${field} must be an ISO timestamp`);
   }
   return text;
+};
+
+const requireValidClock = (value: unknown): Date => {
+  if (!(value instanceof Date) || !Number.isFinite(value.getTime())) {
+    throw new InvalidPayloadError("Trust manifest validation time must be a valid Date");
+  }
+  return value;
 };
 
 const requireVerifiedAlgorithms = (value: unknown): ["EdDSA", ...string[]] => {
@@ -78,6 +87,7 @@ export const fingerprintPqcRawKey = async (encodedKey: string): Promise<string> 
 };
 
 export const validateTrustManifest = (value: unknown, now = new Date()): SigilTrustManifestV1 => {
+  const validationTime = requireValidClock(now);
   if (!isRecord(value)) throw new InvalidPayloadError("Trust manifest must be an object");
   if (value.schema !== "sigil-trust/v1") throw new InvalidPayloadError("Unsupported trust manifest schema");
   const issuer = requireString(value.issuer, "issuer");
@@ -89,7 +99,7 @@ export const validateTrustManifest = (value: unknown, now = new Date()): SigilTr
   const notBefore = requireDate(value.notBefore, "notBefore");
   const notAfter = requireDate(value.notAfter, "notAfter");
   const reviewAfter = requireDate(value.reviewAfter, "reviewAfter");
-  if (Date.parse(notBefore) > now.getTime() || Date.parse(notAfter) <= now.getTime()) {
+  if (Date.parse(notBefore) > validationTime.getTime() || Date.parse(notAfter) <= validationTime.getTime()) {
     throw new InvalidPayloadError("Trust manifest is outside its validity window");
   }
   if (value.revokedAt !== null) {

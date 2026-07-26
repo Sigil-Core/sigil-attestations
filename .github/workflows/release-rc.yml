@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -15,6 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -25,11 +28,17 @@ jobs:
       - run: npm run test:packed-cli
       - name: Require the tag to match package version
         run: test "v$(node -p \"require('./package.json').version\")" = "$GITHUB_REF_NAME"
-      - run: |
+      - id: package
+        run: |
           npm pack
           package_file="$(find . -maxdepth 1 -name 'sigil-attestations-*.tgz' -print -quit)"
           test -n "$package_file"
           sha256sum "$package_file" > "${package_file}.sha256"
+          printf 'package_file=%s\n' "$package_file" >> "$GITHUB_OUTPUT"
+      - name: Attest immutable package artifact
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6
+        with:
+          subject-path: ${{ steps.package.outputs.package_file }}
       - name: Refuse an existing release tag
         env:
           GH_TOKEN: ${{ github.token }}

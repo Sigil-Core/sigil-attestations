@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
-import { exportJWK, generateKeyPair, SignJWT } from "jose";
+import { decodeJwt, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { appendSignatureBlock, hashPgCommitV1, hashPolicy, parsePolicyMarkdown } from "@sigilcore/warrant-core";
 import { createNodeCryptoAdapter } from "@sigilcore/warrant-core/crypto/node";
 import { verifyProvingGroundAttestation } from "../src/index.js";
@@ -71,7 +71,7 @@ const makeArtifacts = async (overrides: { attestationPolicyHash?: string; audien
     })),
     writeFile(join(directory, "VERIFY.md"), "Synthetic verifier instructions only.\n"),
   ]);
-  return { directory, trust, jwt, jwks: { keys: [{ ...signerJwk, kid, alg: "EdDSA", use: "sig" }] }, txCommit };
+  return { directory, trust, jwt, privateKey: signer.privateKey, jwks: { keys: [{ ...signerJwk, kid, alg: "EdDSA", use: "sig" }] }, txCommit };
 };
 
 describe("Proving Ground verifier profile", () => {
@@ -114,6 +114,37 @@ describe("Proving Ground verifier profile", () => {
     const artifact = await makeArtifacts();
     const trust = { ...artifact.trust, verifiedAlgorithms };
     expect(() => validateTrustManifest(trust, NOW)).toThrow("verifiedAlgorithms must begin with EdDSA and contain only strings");
+  });
+
+  it("rejects malformed JWTs and required claims before commitment checks", async () => {
+    const artifact = await makeArtifacts();
+    const request = { intent: INTENT, txCommit: artifact.txCommit };
+    await expect(verifyProvingGroundAttestation("not-a-jwt", {
+      trust: artifact.trust, jwks: artifact.jwks, request, now: NOW,
+    })).rejects.toThrow("compact base64url serialization");
+    const withoutHeaderKid = await new SignJWT(decodeJwt(artifact.jwt))
+      .setProtectedHeader({ alg: "EdDSA" })
+      .sign(artifact.privateKey);
+    await expect(verifyProvingGroundAttestation(withoutHeaderKid, {
+      trust: artifact.trust, jwks: artifact.jwks, request, now: NOW,
+    })).rejects.toThrow("JWT header kid must be a non-empty string");
+    for (const claim of ["kid", "exp", "iat", "intentHash"]) {
+      const payload = decodeJwt(artifact.jwt) as Record<string, unknown>;
+      delete payload[claim];
+      const jwt = await new SignJWT(payload)
+        .setProtectedHeader({ alg: "EdDSA", kid: "synthetic-signer" })
+        .sign(artifact.privateKey);
+      await expect(verifyProvingGroundAttestation(jwt, {
+        trust: artifact.trust, jwks: artifact.jwks, request, now: NOW,
+      })).rejects.toThrow();
+    }
+  });
+
+  it("rejects invalid standalone trust clocks and timestamps before bundle parsing", async () => {
+    const artifact = await makeArtifacts();
+    expect(() => validateTrustManifest(artifact.trust, new Date("invalid"))).toThrow("validation time must be a valid Date");
+    expect(() => validateTrustManifest({ ...artifact.trust, notBefore: "2029-02-29T00:00:00Z" }, NOW)).toThrow("notBefore must be an ISO timestamp");
+    await expect(verifyProofBundle({ bundlePath: artifact.directory, trust: {} as SigilTrustManifestV1, now: NOW })).rejects.toThrow("Unsupported trust manifest schema");
   });
 
   it("rejects a tampered request intent", async () => {
