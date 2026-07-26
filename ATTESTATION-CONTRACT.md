@@ -50,7 +50,8 @@ Trust travels separately from a proof bundle. The accepted JSON shape is:
   "reviewAfter": "2026-02-01T00:00:00Z",
   "revokedAt": null,
   "attestationKeys": [{ "kid": "example", "jwkThumbprint": "RFC7638-base64url-thumbprint" }],
-  "operatorKey": { "fingerprint": "sha256-hex-of-raw-ed25519-key" }
+  "operatorKey": { "fingerprint": "sha256-hex-of-raw-ed25519-key" },
+  "pqcKey": { "kid": "example-pqc", "fingerprint": "sha256-hex-of-raw-ml-dsa-public-key" }
 }
 ```
 

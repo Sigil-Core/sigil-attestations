@@ -15,6 +15,20 @@ const requireInteger = (value: unknown, name: string): number => {
   return value as number;
 };
 
+const resolveVerificationMode = (value: unknown): VerificationMode => {
+  if (value === undefined) return "execution";
+  if (value === "execution" || value === "audit") return value;
+  throw new InvalidPayloadError("mode must be execution or audit");
+};
+
+const resolveNow = (value: unknown): Date => {
+  const now = value ?? new Date();
+  if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
+    throw new InvalidPayloadError("now must be a valid Date");
+  }
+  return now;
+};
+
 const hexFromBytes = (bytes: Uint8Array): string =>
   Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 
@@ -27,7 +41,7 @@ const isCanonicalBase64url = (segment: string): boolean => {
   try {
     const padding = "=".repeat((4 - (segment.length % 4)) % 4);
     const binary = atob(segment.replace(/-/g, "+").replace(/_/g, "/") + padding);
-    return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "") === segment;
+    return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "") === segment;
   } catch {
     return false;
   }
@@ -48,8 +62,8 @@ export const verifyProvingGroundAttestation = async (
   jwt: string,
   options: ProvingGroundVerificationOptions
 ): Promise<ProvingGroundVerificationResult> => {
-  const mode: VerificationMode = options.mode ?? "execution";
-  const now = options.now ?? new Date();
+  const mode = resolveVerificationMode(options.mode);
+  const now = resolveNow(options.now);
   const trust = validateTrustManifest(options.trust, now);
   assertCanonicalCompactJwt(jwt);
   const header = decodeProtectedHeader(jwt);

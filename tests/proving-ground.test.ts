@@ -10,7 +10,7 @@ import { verifyProvingGroundAttestation } from "../src/index.js";
 import { verifyProofBundle } from "../src/node.js";
 import { CANONICALIZER_VERSION, CANONICAL_POLICY_ENVELOPE_SCHEMA } from "../src/bundle.js";
 import { fingerprintEd25519RawKey, fingerprintJwk, fingerprintPqcRawKey } from "../src/trust.js";
-import type { SigilTrustManifestV1 } from "../src/types.js";
+import type { SigilTrustManifestV1, VerificationMode } from "../src/types.js";
 
 const directories: string[] = [];
 const NOW = new Date("2030-01-01T00:00:00Z");
@@ -87,6 +87,24 @@ describe("Proving Ground verifier profile", () => {
     const artifact = await makeArtifacts({ expiresAt: NOW_SECONDS - 1 });
     await expect(verifyProofBundle({ bundlePath: artifact.directory, trust: artifact.trust, now: NOW })).rejects.toThrow("JWT has expired");
     await expect(verifyProofBundle({ bundlePath: artifact.directory, trust: artifact.trust, mode: "audit", now: NOW })).resolves.toMatchObject({ authorizationExpired: true });
+  });
+
+  it("rejects invalid modes and clocks before temporal checks", async () => {
+    const expired = await makeArtifacts({ expiresAt: NOW_SECONDS - 1 });
+    const request = { intent: INTENT, txCommit: expired.txCommit };
+    await expect(verifyProvingGroundAttestation(expired.jwt, {
+      trust: expired.trust,
+      jwks: expired.jwks,
+      request,
+      mode: "unsupported" as VerificationMode,
+      now: NOW,
+    })).rejects.toThrow("mode must be execution or audit");
+    await expect(verifyProvingGroundAttestation(expired.jwt, {
+      trust: expired.trust,
+      jwks: expired.jwks,
+      request,
+      now: new Date("invalid"),
+    })).rejects.toThrow("now must be a valid Date");
   });
 
   it("rejects a tampered request intent", async () => {
