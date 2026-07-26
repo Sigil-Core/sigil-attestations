@@ -128,9 +128,14 @@ describe("Proving Ground verifier profile", () => {
     await expect(verifyProvingGroundAttestation(withoutHeaderKid, {
       trust: artifact.trust, jwks: artifact.jwks, request, now: NOW,
     })).rejects.toThrow("JWT header kid must be a non-empty string");
-    for (const claim of ["kid", "exp", "iat", "intentHash"]) {
-      const payload = decodeJwt(artifact.jwt) as Record<string, unknown>;
-      delete payload[claim];
+    const omitRequiredClaim = {
+      kid: ({ kid: _kid, ...payload }: Record<string, unknown>) => payload,
+      exp: ({ exp: _exp, ...payload }: Record<string, unknown>) => payload,
+      iat: ({ iat: _iat, ...payload }: Record<string, unknown>) => payload,
+      intentHash: ({ intentHash: _intentHash, ...payload }: Record<string, unknown>) => payload,
+    };
+    for (const omitClaim of Object.values(omitRequiredClaim)) {
+      const payload = omitClaim(decodeJwt(artifact.jwt) as Record<string, unknown>);
       const jwt = await new SignJWT(payload)
         .setProtectedHeader({ alg: "EdDSA", kid: "synthetic-signer" })
         .sign(artifact.privateKey);
@@ -145,6 +150,12 @@ describe("Proving Ground verifier profile", () => {
     expect(() => validateTrustManifest(artifact.trust, new Date("invalid"))).toThrow("validation time must be a valid Date");
     expect(() => validateTrustManifest({ ...artifact.trust, notBefore: "2029-02-29T00:00:00Z" }, NOW)).toThrow("notBefore must be an ISO timestamp");
     await expect(verifyProofBundle({ bundlePath: artifact.directory, trust: {} as SigilTrustManifestV1, now: NOW })).rejects.toThrow("Unsupported trust manifest schema");
+  });
+
+  it("rejects response attestations that differ from the exact JWT file bytes", async () => {
+    const artifact = await makeArtifacts();
+    await writeFile(join(artifact.directory, "attestation.jwt"), ` ${artifact.jwt}\n`);
+    await expect(verifyProofBundle({ bundlePath: artifact.directory, trust: artifact.trust, now: NOW })).rejects.toThrow("response.json intent_attestation does not match attestation.jwt");
   });
 
   it("rejects a tampered request intent", async () => {

@@ -104,10 +104,10 @@ export const verifyProofBundle = async (options: VerifyBundleOptions): Promise<V
   if (!("intent" in request) || typeof request.txCommit !== "string") {
     throw new InvalidPayloadError("request.json must contain intent and txCommit");
   }
-  if (response.intent_attestation !== jwt.trim()) {
+  if (response.intent_attestation !== jwt) {
     throw new InvalidPayloadError("response.json intent_attestation does not match attestation.jwt");
   }
-  const header = decodeProtectedHeader(jwt.trim());
+  const header = decodeProtectedHeader(jwt);
   if (typeof header.kid !== "string") throw new InvalidPayloadError("attestation JWT header must contain kid");
   await assertTrustedBundleKeys(trust, jwks, operatorKey, header.kid);
   await assertTrustedInformationalPqcKey(trust, pqcKeys);
@@ -121,7 +121,7 @@ export const verifyProofBundle = async (options: VerifyBundleOptions): Promise<V
   if (derivedPolicyHash !== suppliedCanonicalHash) {
     throw new InvalidPayloadError("policy.canonical.json hash does not match warranty.md");
   }
-  const attestation = await verifyProvingGroundAttestation(jwt.trim(), {
+  const attestation = await verifyProvingGroundAttestation(jwt, {
     trust,
     jwks,
     request: { intent: request.intent, txCommit: request.txCommit },
