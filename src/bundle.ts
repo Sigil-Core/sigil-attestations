@@ -27,7 +27,7 @@ const requiredFiles = [
 ] as const;
 
 export const CANONICAL_POLICY_ENVELOPE_SCHEMA = "sigil-policy-canonical/v1";
-export const CANONICALIZER_VERSION = "@sigilcore/warrant-core@0.2.0";
+export const CANONICALIZER_VERSION = "@sigilcore/warrant-core@0.2.1";
 
 const readUtf8 = async (bundlePath: string, name: string): Promise<string> => {
   try {
