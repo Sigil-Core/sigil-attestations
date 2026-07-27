@@ -27,6 +27,47 @@ This repository does **not** contain private keys, signing infrastructure, polic
 
 ---
 
+## Proving Ground verifier release
+
+The final Proving Ground verifier is the GitHub Release [`v0.2.0`](https://github.com/Sigil-Core/sigil-attestations/releases/tag/v0.2.0). It promotes the unchanged `v0.2.0-rc.2` candidate at commit [`568a327224477e7416688c3cfdb50bbac4950bfb`](https://github.com/Sigil-Core/sigil-attestations/commit/568a327224477e7416688c3cfdb50bbac4950bfb). This launch uses GitHub Release artifacts only. It does not publish the verifier to npm.
+
+The final release retains the immutable candidate artifact name and bytes:
+
+- `sigil-attestations-0.2.0-rc.2.tgz`, SHA-256 `e7d4d9364b1668e184104c0bbe567d21f6bd23ae55c53c0ba8ec00638a01ba25`
+- `sigil-trust.v1.json`, SHA-256 `ff4a1f91cbc840d4909394d4943389d7303d13d943a0ee1350243c35f8c59bb5`
+
+Download each artifact and its companion checksum from the final `v0.2.0` release, verify the checksum before use, then install the local tarball:
+
+```sh
+curl -LO https://github.com/Sigil-Core/sigil-attestations/releases/download/v0.2.0/sigil-attestations-0.2.0-rc.2.tgz
+curl -LO https://github.com/Sigil-Core/sigil-attestations/releases/download/v0.2.0/sigil-attestations-0.2.0-rc.2.tgz.sha256
+shasum -a 256 -c sigil-attestations-0.2.0-rc.2.tgz.sha256
+npm install --global ./sigil-attestations-0.2.0-rc.2.tgz
+```
+
+Acquire `sigil-trust.v1.json` separately from the proof bundle. The final release provides the trust file and its checksum as distinct assets:
+
+```sh
+curl -LO https://github.com/Sigil-Core/sigil-attestations/releases/download/v0.2.0/sigil-trust.v1.json
+curl -LO https://github.com/Sigil-Core/sigil-attestations/releases/download/v0.2.0/sigil-trust.v1.json.sha256
+shasum -a 256 -c sigil-trust.v1.json.sha256
+```
+
+### Verify a live Proving Ground proof
+
+At [sigilcore.com/proving-ground](https://sigilcore.com/proving-ground), run a signed-clearance scenario, wait for all four browser verification links to pass, then download the proof bundle. Signed-clearance scenarios use `/v1/authorize`; PENDING and DENIED test-run scenarios do not produce a signed proof bundle. Unpack the download, then supply the separately acquired trust manifest:
+
+```sh
+sigil-verify --bundle ./sigil-proving-ground-proof --trust ./sigil-trust.v1.json --mode execution --json
+sigil-verify --bundle ./sigil-proving-ground-proof --trust ./sigil-trust.v1.json --mode audit --json
+```
+
+Execution mode verifies a currently valid authorization and rejects it after its 60-second lifetime. Audit mode verifies the same historical signature, policy, trust, and request binding after expiry, reporting `authorizationExpired: true`; it never restores execution authority.
+
+The release verifies the Ed25519 envelope. `pqc-keys.json` remains an informational proof-bundle artifact, and this verifier does not verify ML-DSA-65 signatures.
+
+---
+
 ## Role in the Sigil Architecture
 
 Sigil OS consists of three primary components:
