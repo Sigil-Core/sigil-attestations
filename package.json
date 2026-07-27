@@ -31,7 +31,7 @@
     "test:packed-cli": "node scripts/test-packed-cli.mjs"
   },
   "dependencies": {
-    "@sigilcore/warrant-core": "0.1.1",
+    "@sigilcore/warrant-core": "0.2.0",
     "jose": "^5.0.0"
   },
   "devDependencies": {
