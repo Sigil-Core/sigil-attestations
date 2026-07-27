@@ -276,12 +276,13 @@ describe("Proving Ground verifier profile", () => {
   });
 
   it("binds the response, canonicalizer, PQC snapshot, and trust lifecycle", async () => {
+    expect(CANONICALIZER_VERSION).toBe("@sigilcore/warrant-core@0.2.0");
     const responseMismatch = await makeArtifacts({ responseAttestation: "not-the-attestation" });
     await expect(verifyProofBundle({ bundlePath: responseMismatch.directory, trust: responseMismatch.trust, now: NOW })).rejects.toThrow("response.json intent_attestation");
 
     const canonicalizerMismatch = await makeArtifacts();
     const canonical = JSON.parse(await readFile(join(canonicalizerMismatch.directory, "policy.canonical.json"), "utf8"));
-    canonical.canonicalizer = "@sigilcore/warrant-core@999.0.0";
+    canonical.canonicalizer = "@sigilcore/warrant-core@0.1.1";
     await writeFile(join(canonicalizerMismatch.directory, "policy.canonical.json"), JSON.stringify(canonical));
     await expect(verifyProofBundle({ bundlePath: canonicalizerMismatch.directory, trust: canonicalizerMismatch.trust, now: NOW })).rejects.toThrow("unsupported canonicalizer envelope");
 

@@ -21,7 +21,7 @@ The profile intentionally does not require `payload.intent`, `targetAddress`, or
 
 ## Request binding: `pg-commit-v1`
 
-The proxy computes `txCommit` as lowercase SHA-256 hex over the UTF-8 bytes of `canonicalizePgCommitV1(intent)` from `@sigilcore/warrant-core@0.1.1`.
+The proxy computes `txCommit` as lowercase SHA-256 hex over the UTF-8 bytes of `canonicalizePgCommitV1(intent)` from `@sigilcore/warrant-core@0.2.0`.
 
 - Object keys sort by ECMAScript UTF-16 code-unit order.
 - Array order remains unchanged.
@@ -78,14 +78,14 @@ pqc-keys.json
 VERIFY.md
 ```
 
-`response.json.intent_attestation` must byte-match `attestation.jwt`. `warranty.md` must carry a final `## signature` block. The verifier checks that signature over the unsigned Warrant bytes, parses the Warrant with `@sigilcore/warrant-core@0.1.1`, and derives its hash independently.
+`response.json.intent_attestation` must byte-match `attestation.jwt`. `warranty.md` must carry a final `## signature` block. The verifier checks that signature over the unsigned Warrant bytes, parses the Warrant with `@sigilcore/warrant-core@0.2.0`, and derives its hash independently.
 
 `policy.canonical.json` uses this versioned envelope. Metadata never enters the policy hash:
 
 ```json
 {
   "schema": "sigil-policy-canonical/v1",
-  "canonicalizer": "@sigilcore/warrant-core@0.1.1",
+  "canonicalizer": "@sigilcore/warrant-core@0.2.0",
   "policy": { "version": "2.1.0" }
 }
 ```
@@ -106,7 +106,7 @@ sigil-verify --bundle ./proof-bundle --trust ./sigil-trust.v1.json --mode audit 
 
 ### Warrant Builder: no user-interface or signing change in Phase 2
 
-The verifier consumes a downloaded signed Warrant through the exact `@sigilcore/warrant-core@0.1.1` parser and canonicalizer. It adds no Builder field, import rule, signing path, preview behavior, download format, deployment behavior, migration, or round-trip change. The release gate is the already-required Phase 1 Builder regression evidence plus this verifier's derived-policy test. Any policy hash difference between Builder output and the shared core blocks fixture release.
+The verifier consumes a downloaded signed Warrant through the exact `@sigilcore/warrant-core@0.2.0` parser and canonicalizer. It adds no Builder field, import rule, signing path, preview behavior, download format, deployment behavior, migration, or round-trip change. The release gate is the already-required Phase 1 Builder regression evidence plus this verifier's derived-policy test. Any policy hash difference between Builder output and the shared core blocks fixture release.
 
 ### Manual Warrant: no grid, sample, or authoring-flow change in Phase 2
 
