@@ -49,7 +49,7 @@ The CC-1 raw-proof verifier is available as the immutable npm prerelease `sigil-
 npm install --save-exact sigil-attestations@0.2.1-rc.1
 ```
 
-This prerelease uses the npm `next` dist-tag and carries registry provenance from the repository's trusted GitHub Actions publisher. It is not the stable `latest` release.
+This exact prerelease was the interactive first publication required before npm permitted a trusted publisher to be configured for the new package name. Its registry shasum matches the immutable GitHub Release tarball, which carries a GitHub build attestation. This first npm version does not carry an npm registry provenance statement. npm assigned the first published version to both `next` and `latest`; consumers must install the exact prerelease version shown above. Later approved candidates publish through the repository's trusted GitHub Actions publisher.
 
 ### Historical Proving Ground release
 

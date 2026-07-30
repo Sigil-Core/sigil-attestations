@@ -108,21 +108,7 @@ jobs:
             cat /tmp/npm-view.err
             exit 1
           fi
-      - name: Require the one-time first-publication credential
-        if: github.ref_name == 'v0.2.1-rc.1'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
-        run: test -n "$NODE_AUTH_TOKEN"
-      - name: Publish first prerelease with the one-time credential and provenance
-        if: github.ref_name == 'v0.2.1-rc.1'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
-        run: |
-          package_file="$(find . -maxdepth 1 -name 'sigil-attestations-*.tgz' -print -quit)"
-          test -n "$package_file"
-          npm publish "$package_file" --access public --tag next --provenance
-      - name: Publish later prereleases with npm trusted publishing and provenance
-        if: github.ref_name != 'v0.2.1-rc.1'
+      - name: Publish prerelease with npm trusted publishing and provenance
         run: |
           package_file="$(find . -maxdepth 1 -name 'sigil-attestations-*.tgz' -print -quit)"
           test -n "$package_file"
