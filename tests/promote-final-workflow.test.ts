@@ -36,4 +36,20 @@ describe("final promotion workflow", () => {
     expect(workflow).toContain("subject-path:");
     expect(workflow).not.toContain('gh release view "$GITHUB_REF_NAME"');
   });
+
+  it("publishes prereleases through npm trusted publishing without a long-lived token", async () => {
+    const workflow = await readFile(releaseWorkflowPath, "utf8");
+    expect(workflow).toContain(
+      "publish:\n    needs: [build, release]\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read\n      id-token: write",
+    );
+    expect(workflow).toContain("registry-url: https://registry.npmjs.org");
+    expect(workflow).toContain("execFileSync('npm', ['--version']");
+    expect(workflow).toContain("minor < 5 || (minor === 5 && patch < 1)");
+    expect(workflow).not.toContain("npm install --global");
+    expect(workflow).toContain("Refuse an existing immutable npm version");
+    expect(workflow).toContain('npm publish "$package_file" --access public --tag next --provenance');
+    for (const credentialVariable of ["NODE_AUTH_TOKEN", "NPM_TOKEN"]) {
+      expect(workflow).not.toContain(credentialVariable);
+    }
+  });
 });
