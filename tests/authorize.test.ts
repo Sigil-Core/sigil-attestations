@@ -36,7 +36,7 @@ const makeFixture = async (overrides: {
   expiresAt?: number;
   issuedAt?: number;
   payloadKid?: string;
-  audience?: string;
+  audience?: string | readonly string[];
   issuer?: string;
   trustReference?: Partial<SigilAuthorizeProofBundleV1["trust_reference"]>;
   trustKey?: Partial<SigilAuthorizeTrustV1["keys"][number]>;
@@ -157,6 +157,35 @@ describe("sigil-sign-authorize-v1", () => {
       verifyAuthorizeProofBundleForAudit(new TextEncoder().encode(JSON.stringify(withoutChain)), fixture.trust, { verificationTime: NOW }),
       AuthorizeVerificationErrorCode.CLAIM_MISMATCH
     );
+  });
+
+  it("accepts a multi-audience JWT only when it contains the trusted audience", async () => {
+    const accepted = await makeFixture({ audience: ["sigil-sign", "audit-archive"] });
+    await expect(verifyAuthorizeProofBundleForAudit(accepted.raw, accepted.trust, { verificationTime: NOW })).resolves.toMatchObject({ mode: "audit" });
+    const rejected = await makeFixture({ audience: ["audit-archive", "other"] });
+    await expectCode(
+      verifyAuthorizeProofBundleForAudit(rejected.raw, rejected.trust, { verificationTime: NOW }),
+      AuthorizeVerificationErrorCode.AUDIENCE
+    );
+  });
+
+  it("rejects an alternate compact-JWT base64url serialization before replay consumption", async () => {
+    const fixture = await makeFixture();
+    const [header, payload, signature] = fixture.token.split(".");
+    const paddedSignatureToken = `${header}.${payload}.${signature}=`;
+    const paddedSignatureBundle = { ...fixture.bundle, token: paddedSignatureToken };
+    const paddedSignatureRaw = new TextEncoder().encode(JSON.stringify(paddedSignatureBundle));
+    await expectCode(
+      verifyAuthorizeProofBundleForAudit(paddedSignatureRaw, fixture.trust, { verificationTime: NOW }),
+      AuthorizeVerificationErrorCode.SIGNATURE
+    );
+    const store = memoryReplayStore();
+    await expect(verifyAuthorizeProofBundleForExecution(fixture.raw, fixture.trust, store)).resolves.toMatchObject({ mode: "execution" });
+    await expectCode(
+      verifyAuthorizeProofBundleForExecution(paddedSignatureRaw, fixture.trust, store),
+      AuthorizeVerificationErrorCode.SIGNATURE
+    );
+    expect(store.consumed).toHaveLength(1);
   });
 
   it("permits exactly one of 100 concurrent execution consumers and retains through exp plus 300 seconds", async () => {

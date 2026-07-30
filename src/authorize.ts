@@ -23,6 +23,7 @@ const REPLAY_RETENTION_SECONDS = 300;
 const STORE_CLOCK_FAIL_SECONDS = 30;
 const HEX_64 = /^[a-f0-9]{64}$/;
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
+const BASE64URL_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 type RecordValue = Record<string, unknown>;
 
@@ -329,8 +330,26 @@ const sameText = (left: string, right: string): boolean => {
   return difference === 0;
 };
 
+// skipcq: JS-R1005 - Compact JWS segments must reject padding and non-zero unused bits before replay-id derivation.
+const isCanonicalBase64urlSegment = (segment: string): boolean => {
+  if (!BASE64URL.test(segment)) return false;
+  const remainder = segment.length % 4;
+  if (remainder === 1) return false;
+  if (remainder === 0) return true;
+  const lastCharacter = BASE64URL_ALPHABET.indexOf(segment[segment.length - 1]);
+  return remainder === 2 ? (lastCharacter & 0x0f) === 0 : (lastCharacter & 0x03) === 0;
+};
+
+const assertCanonicalCompactJws = (token: string): void => {
+  const segments = token.split(".");
+  if (segments.length !== 3 || !segments.every(isCanonicalBase64urlSegment)) {
+    fail(AuthorizeVerificationErrorCode.SIGNATURE, "token must use canonical unpadded base64url compact serialization");
+  }
+};
+
 // skipcq: JS-R1005 - This ordered JWT boundary verifies EdDSA before admitting claims to the authorization path.
 const readPayload = async (bundle: SigilAuthorizeProofBundleV1, trust: SigilAuthorizeTrustV1): Promise<{ payload: RecordValue; key: AuthorizeTrustKey; headerKid: string }> => {
+  assertCanonicalCompactJws(bundle.token);
   let header: RecordValue = {};
   try {
     header = decodeProtectedHeader(bundle.token) as RecordValue;
@@ -362,6 +381,11 @@ const readPayload = async (bundle: SigilAuthorizeProofBundleV1, trust: SigilAuth
 const requireClaimString = (payload: RecordValue, field: string): string =>
   requireString(payload[field], `token ${field}`, AuthorizeVerificationErrorCode.CLAIM_MISMATCH);
 
+const claimHasAudience = (value: unknown, expected: string): boolean => {
+  if (typeof value === "string") return sameText(value, expected);
+  return Array.isArray(value) && value.length > 0 && value.every((entry) => typeof entry === "string") && value.some((entry) => sameText(entry, expected));
+};
+
 const requireHash = (value: unknown, field: string, code: AuthorizeVerificationErrorCode): string => {
   const result = requireString(value, field, code);
   if (!HEX_64.test(result)) fail(code, `${field} must be lowercase SHA-256 hex`);
@@ -390,8 +414,9 @@ const validateClaims = (
 ): Omit<AuthorizeProofCommon, "profile" | "txCommit" | "intentHash" | "policyHash"> & { intentHash: string; policyHash: string } => {
   const issuer = requireClaimString(payload, "iss");
   if (!sameText(issuer, trust.issuer)) fail(AuthorizeVerificationErrorCode.ISSUER, "token issuer does not match trusted issuer");
-  const audience = requireClaimString(payload, "aud");
-  if (!sameText(audience, trust.audience)) fail(AuthorizeVerificationErrorCode.AUDIENCE, "token audience does not match trusted audience");
+  if (!claimHasAudience(payload.aud, trust.audience)) {
+    fail(AuthorizeVerificationErrorCode.AUDIENCE, "token audience does not contain the trusted audience");
+  }
   const payloadKid = requireClaimString(payload, "kid");
   if (!sameText(payloadKid, headerKid)) fail(AuthorizeVerificationErrorCode.KID_MISMATCH, "token header and payload kid differ");
   if (!sameText(requireClaimString(payload, "agentId"), bundle.request.agentId) || !sameText(requireClaimString(payload, "framework"), bundle.request.framework)) {
