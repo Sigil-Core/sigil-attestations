@@ -94,7 +94,6 @@ jobs:
       - name: Require the npm trusted-publishing runtime
         run: |
           node --input-type=module -e "const [major, minor] = process.versions.node.split('.').map(Number); if (major < 22 || (major === 22 && minor < 14)) process.exit(1)"
-          npm install --global npm@11.5.1
           node --input-type=module -e "const { execFileSync } = await import('node:child_process'); const [major, minor, patch] = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim().split('.').map(Number); if (major < 11 || (major === 11 && (minor < 5 || (minor === 5 && patch < 1)))) process.exit(1)"
       - name: Refuse an existing immutable npm version
         env:
