@@ -269,7 +269,14 @@ const requireTrustKey = (value: unknown): AuthorizeTrustKey => {
   if (!isRecord(key.jwk)) fail(AuthorizeVerificationErrorCode.BUNDLE_SCHEMA, "trust key JWK must be an object");
   const jwk = key.jwk as RecordValue;
   assertExactKeys(jwk, ["kty", "crv", "x", "alg"], "trust key JWK");
-  if (jwk.kty !== "OKP" || jwk.crv !== "Ed25519" || typeof jwk.x !== "string" || !BASE64URL.test(jwk.x)) {
+  // A canonical unpadded base64url value for exactly 32 bytes is 43 characters.
+  if (
+    jwk.kty !== "OKP" ||
+    jwk.crv !== "Ed25519" ||
+    typeof jwk.x !== "string" ||
+    jwk.x.length !== 43 ||
+    !isCanonicalBase64urlSegment(jwk.x)
+  ) {
     fail(AuthorizeVerificationErrorCode.BUNDLE_SCHEMA, "trust key must be an Ed25519 public JWK");
   }
   if (jwk.alg !== undefined && jwk.alg !== "EdDSA") {
@@ -325,14 +332,7 @@ const webCryptoAdapter = () => {
 
 const hex = (bytes: Uint8Array): string => Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
 
-const sameText = (left: string, right: string): boolean => {
-  const leftBytes = new TextEncoder().encode(left);
-  const rightBytes = new TextEncoder().encode(right);
-  if (leftBytes.length !== rightBytes.length) return false;
-  let difference = 0;
-  for (let index = 0; index < leftBytes.length; index += 1) difference |= leftBytes[index] ^ rightBytes[index];
-  return difference === 0;
-};
+const sameText = (left: string, right: string): boolean => left === right;
 
 // skipcq: JS-R1005 - Compact JWS segments must reject padding and non-zero unused bits before replay-id derivation.
 const isCanonicalBase64urlSegment = (segment: string): boolean => {

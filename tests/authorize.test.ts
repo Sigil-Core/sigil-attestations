@@ -6,6 +6,7 @@ import { createNodeCryptoAdapter } from "@sigilcore/warrant-core/crypto/node";
 import {
   AuthorizeVerificationError,
   AuthorizeVerificationErrorCode,
+  validateAuthorizeTrust,
   verifyAuthorizeProofBundleForAudit,
   verifyAuthorizeProofBundleForExecution,
 } from "../src/index.js";
@@ -170,6 +171,30 @@ describe("sigil-sign-authorize-v1", () => {
     await expectCode(
       verifyAuthorizeProofBundleForAudit(rejected.raw, rejected.trust, { verificationTime: NOW }),
       AuthorizeVerificationErrorCode.AUDIENCE
+    );
+  });
+
+  it("rejects malformed trusted key material and lossy Unicode identity matches", async () => {
+    const malformedKey = await makeFixture();
+    malformedKey.trust.keys[0].jwk.x = "A";
+    let malformedError: unknown;
+    try {
+      validateAuthorizeTrust(malformedKey.trust);
+    } catch (error) {
+      malformedError = error;
+    }
+    expect(malformedError).toMatchObject({ code: AuthorizeVerificationErrorCode.BUNDLE_SCHEMA });
+
+    const mismatchedIssuer = await makeFixture({ issuer: "\ud801" });
+    mismatchedIssuer.trust.issuer = "\ud800";
+    mismatchedIssuer.bundle.trust_reference.issuer = "\ud800";
+    await expectCode(
+      verifyAuthorizeProofBundleForAudit(
+        new TextEncoder().encode(JSON.stringify(mismatchedIssuer.bundle)),
+        mismatchedIssuer.trust,
+        { verificationTime: NOW }
+      ),
+      AuthorizeVerificationErrorCode.ISSUER
     );
   });
 
