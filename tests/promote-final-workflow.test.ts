@@ -64,13 +64,13 @@ describe("final promotion workflow", () => {
     expect(workflow).not.toContain("npm install --global");
     expect(workflow).toContain("Refuse an existing immutable npm version");
     expect(bootstrapStep).toContain("if: github.ref_name == 'v0.2.1-rc.1'");
-    expect(bootstrapStep).toContain(
-      "NODE_AUTH_TOKEN: $" + "{{ secrets.NPM_BOOTSTRAP_TOKEN }}",
+    expect(bootstrapStep).toMatch(
+      /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_BOOTSTRAP_TOKEN \}\}/,
     );
     expect(bootstrapStep).toContain('run: test -n "$NODE_AUTH_TOKEN"');
     expect(bootstrapPublishStep).toContain("if: github.ref_name == 'v0.2.1-rc.1'");
-    expect(bootstrapPublishStep).toContain(
-      "NODE_AUTH_TOKEN: $" + "{{ secrets.NPM_BOOTSTRAP_TOKEN }}",
+    expect(bootstrapPublishStep).toMatch(
+      /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_BOOTSTRAP_TOKEN \}\}/,
     );
     expect(bootstrapPublishStep).toContain(
       'npm publish "$package_file" --access public --tag next --provenance',
