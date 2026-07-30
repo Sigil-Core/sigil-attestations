@@ -21,6 +21,7 @@ const TOKEN_LIFETIME_SECONDS = 60;
 const FUTURE_IAT_TOLERANCE_SECONDS = 5;
 const REPLAY_RETENTION_SECONDS = 300;
 const STORE_CLOCK_FAIL_SECONDS = 30;
+const MAX_JSON_NESTING = 64;
 const HEX_64 = /^[a-f0-9]{64}$/;
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
 const BASE64URL_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
@@ -113,7 +114,10 @@ const assertNoDuplicateJsonProperties = (input: string): void => {
     return invalid();
   };
   // skipcq: JS-R1005 - The recursive lexical parser preserves duplicate-key detection that JSON.parse discards.
-  const value = (): void => {
+  const value = (depth = 0): void => {
+    if (depth >= MAX_JSON_NESTING) {
+      fail(AuthorizeVerificationErrorCode.BUNDLE_SCHEMA, "proof bundle exceeds the maximum JSON nesting depth");
+    }
     whitespace();
     const character = input[index];
     if (character === "{") {
@@ -132,7 +136,7 @@ const assertNoDuplicateJsonProperties = (input: string): void => {
         whitespace();
         if (input[index] !== ":") invalid();
         index += 1;
-        value();
+        value(depth + 1);
         whitespace();
         if (input[index] === "}") {
           index += 1;
@@ -150,7 +154,7 @@ const assertNoDuplicateJsonProperties = (input: string): void => {
         return;
       }
       while (true) {
-        value();
+        value(depth + 1);
         whitespace();
         if (input[index] === "]") {
           index += 1;
@@ -399,9 +403,6 @@ const readChainId = (value: RecordValue, field: string): number | undefined => {
   return chainId;
 };
 
-const isEvmIntent = (intent: JsonValue): boolean =>
-  isRecord(intent) && (typeof intent.targetAddress === "string" || (typeof intent.action === "string" && intent.action.startsWith("wallet.")));
-
 // skipcq: JS-R1005 - Each independent claim and trust-window condition is fail-closed and security relevant.
 const validateClaims = (
   bundle: SigilAuthorizeProofBundleV1,
@@ -424,7 +425,7 @@ const validateClaims = (
   }
   const signedChainId = readChainId(payload, "token chainId");
   const requestChainId = bundle.request.chainId;
-  if (signedChainId !== requestChainId || (isEvmIntent(bundle.request.intent) && requestChainId === undefined)) {
+  if (signedChainId !== requestChainId) {
     fail(AuthorizeVerificationErrorCode.CLAIM_MISMATCH, "token chainId must exactly match the request");
   }
   const iat = requireInteger(payload.iat, "token iat", AuthorizeVerificationErrorCode.LIFETIME);
@@ -432,7 +433,10 @@ const validateClaims = (
   if (exp <= iat || exp - iat > TOKEN_LIFETIME_SECONDS) fail(AuthorizeVerificationErrorCode.LIFETIME, "token lifetime must be between one and 60 seconds");
   if (iat > verificationTime + FUTURE_IAT_TOLERANCE_SECONDS) fail(AuthorizeVerificationErrorCode.IAT_FUTURE, "token iat is too far in the future");
   if (mode === "execution" && verificationTime >= exp) fail(AuthorizeVerificationErrorCode.EXPIRED, "token has expired");
-  if (iat < key.not_before || iat >= key.not_after || verificationTime < key.not_before || verificationTime >= key.not_after) {
+  if (iat < key.not_before || iat >= key.not_after) {
+    fail(AuthorizeVerificationErrorCode.TRUST_WINDOW, "trusted key is outside its validity window");
+  }
+  if (mode === "execution" && (verificationTime < key.not_before || verificationTime >= key.not_after)) {
     fail(AuthorizeVerificationErrorCode.TRUST_WINDOW, "trusted key is outside its validity window");
   }
   if (key.revoked_at !== undefined && (iat >= key.revoked_at || verificationTime >= key.revoked_at)) {
@@ -540,6 +544,7 @@ export const verifyAuthorizeProofBundleForExecution = async (
   try {
     consumeResult = await replayStore.consumeIfUnused(
       replayId,
+      common.expiresAt,
       common.expiresAt + REPLAY_RETENTION_SECONDS,
       now,
       STORE_CLOCK_FAIL_SECONDS
@@ -557,8 +562,14 @@ export const verifyAuthorizeProofBundleForExecution = async (
   if (consumeStatus === "replayed") {
     fail(AuthorizeVerificationErrorCode.REPLAY_DENIED, "authorization token has already been consumed");
   }
+  if (consumeStatus === "expired") {
+    fail(AuthorizeVerificationErrorCode.EXPIRED, "authorization token expired before replay consumption");
+  }
   if (consumeStatus !== "consumed") {
     fail(AuthorizeVerificationErrorCode.REPLAY_UNAVAILABLE, "replay store returned an invalid status");
+  }
+  if (Math.floor(Date.now() / 1000) >= common.expiresAt) {
+    fail(AuthorizeVerificationErrorCode.EXPIRED, "authorization token expired during replay consumption");
   }
   return { ...common, mode: "execution" } as ExecutionAuthorizeProof;
 };

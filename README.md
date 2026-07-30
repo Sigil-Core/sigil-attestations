@@ -31,7 +31,7 @@ This repository does **not** contain private keys, signing infrastructure, polic
 
 The package root exports `sigil-sign-authorize-v1` verification for raw proof-bundle bytes. The caller must acquire `sigil-authorize-trust/v1` separately. A proof bundle can reference that trust configuration, but cannot supply a trust root or a bearer key.
 
-- `verifyAuthorizeProofBundleForExecution(rawBundle, trust, replayStore)` requires a currently valid 60-second authorization and an atomic, durable replay-store consumption. Its `mode: "execution"` nominal result is the only execution-authorization result. The store must reject more than 30 seconds of clock drift before consuming the proof and retain accepted replay identifiers through `exp + 300` seconds.
+- `verifyAuthorizeProofBundleForExecution(rawBundle, trust, replayStore)` requires a currently valid 60-second authorization and an atomic, durable replay-store consumption. Its `mode: "execution"` nominal result is the only execution-authorization result. Before consuming, the store must reject expiry and more than 30 seconds of clock drift, and retain accepted replay identifiers through `exp + 300` seconds. The verifier rechecks expiry after consumption and returns no authority if the proof expires during the store operation.
 - `verifyAuthorizeProofBundleForAudit(rawBundle, trust, { verificationTime })` verifies historical evidence without reading or writing replay state. It reports expiry at that time and cannot grant execution authority.
 - Both APIs require a strict CC-1 signed Warrant, derive the policy hash from its unsigned bytes through the exact `@sigilcore/warrant-core@0.2.3` dependency, and reject bundles larger than 1 MiB or Warrants larger than 256 KiB.
 

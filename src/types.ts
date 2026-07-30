@@ -166,17 +166,19 @@ export interface SigilAuthorizeProofBundleV1 {
 export type AuthorizeReplayConsumeResult =
   | { status: "consumed" }
   | { status: "replayed" }
+  | { status: "expired" }
   | { status: "clock_drift" };
 
 /**
  * A conforming store performs a single atomic compare-and-consume operation.
  * Before writing the replay id, it compares its authoritative clock with
- * verificationTimeUnixSeconds and returns clock_drift without consuming when
- * the difference exceeds maxClockDriftSeconds.
+ * verificationTimeUnixSeconds and rejects expired proof at expiresAtUnixSeconds.
+ * It returns clock_drift or expired without consuming when those checks fail.
  */
 export interface AuthorizeReplayStore {
   consumeIfUnused(
     replayId: string,
+    expiresAtUnixSeconds: number,
     retainUntilUnixSeconds: number,
     verificationTimeUnixSeconds: number,
     maxClockDriftSeconds: number

@@ -14,7 +14,7 @@ Both APIs accept no more than 1 MiB of raw JSON and require a strict signed Warr
 
 The compact JWT must use canonical unpadded base64url for every segment, including zero unused pad bits. The verifier rejects padded or alternate encodings before signature verification and replay-id derivation. The `aud` claim may be a string or a non-empty array of strings; it must contain the separately configured trusted audience.
 
-The execution replay store must atomically compare its authoritative clock with the supplied verifier time before marking a replay id used. When the absolute difference exceeds 30 seconds, it returns `clock_drift` without consuming the proof. It returns `replayed` only for an already-consumed proof and `consumed` only after a successful write retained through `exp + 300` seconds.
+The execution replay store must atomically compare its authoritative clock with the supplied verifier time and reject an expired proof before marking a replay id used. When the absolute difference exceeds 30 seconds, it returns `clock_drift` without consuming the proof. It returns `expired` without consumption when its authoritative time is at or after `exp`, `replayed` only for an already-consumed proof, and `consumed` only after a successful write retained through `exp + 300` seconds. The verifier also rechecks local time after a successful consume and returns no authority if expiry elapsed during the store operation.
 
 This CC-1 API is distinct from the legacy unpacked directory profile below. That profile remains available to verify already-issued proof bundles.
 

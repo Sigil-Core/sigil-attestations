@@ -102,21 +102,25 @@ const makeFixture = async (overrides: {
 
 const memoryReplayStore = (): AuthorizeReplayStore & {
   consumed: Set<string>;
+  expiresAt: number[];
   retainUntil: number[];
   verificationTimes: number[];
   maxClockDrifts: number[];
 } => {
   const consumed = new Set<string>();
+  const expiresAt: number[] = [];
   const retainUntil: number[] = [];
   const verificationTimes: number[] = [];
   const maxClockDrifts: number[] = [];
   return {
     consumed,
+    expiresAt,
     retainUntil,
     verificationTimes,
     maxClockDrifts,
-    consumeIfUnused(replayId, expiration, verificationTime, maxClockDrift) {
-      retainUntil.push(expiration);
+    consumeIfUnused(replayId, expiration, retainThrough, verificationTime, maxClockDrift) {
+      expiresAt.push(expiration);
+      retainUntil.push(retainThrough);
       verificationTimes.push(verificationTime);
       maxClockDrifts.push(maxClockDrift);
       if (consumed.has(replayId)) return Promise.resolve({ status: "replayed" as const });
@@ -200,6 +204,7 @@ describe("sigil-sign-authorize-v1", () => {
       expect((result as PromiseRejectedResult).reason).toMatchObject({ code: AuthorizeVerificationErrorCode.REPLAY_DENIED });
     }
     expect(store.retainUntil).toEqual(Array.from({ length: 100 }, () => NOW_SECONDS + 350));
+    expect(store.expiresAt).toEqual(Array.from({ length: 100 }, () => NOW_SECONDS + 50));
     expect(store.verificationTimes).toEqual(Array.from({ length: 100 }, () => NOW_SECONDS));
     expect(store.maxClockDrifts).toEqual(Array.from({ length: 100 }, () => 30));
   });
@@ -214,6 +219,22 @@ describe("sigil-sign-authorize-v1", () => {
     const audit = await verifyAuthorizeProofBundleForAudit(fixture.raw, fixture.trust, { verificationTime: NOW });
     expect(audit.expiredAtVerification).toBe(true);
     expect(store.consumed.size).toBe(0);
+  });
+
+  it("permits matched chainless requests regardless of intent shape", async () => {
+    const fixture = await makeFixture({
+      intent: { action: "wallet.transfer", targetAddress: "0x000000000000000000000000000000000000dEaD", amount: "1" },
+    });
+    await expect(verifyAuthorizeProofBundleForAudit(fixture.raw, fixture.trust, { verificationTime: NOW })).resolves.toMatchObject({ mode: "audit" });
+  });
+
+  it("preserves audit evidence issued before routine key rotation", async () => {
+    const fixture = await makeFixture({ trustKey: { not_after: NOW_SECONDS - 1 } });
+    await expect(verifyAuthorizeProofBundleForAudit(fixture.raw, fixture.trust, { verificationTime: NOW })).resolves.toMatchObject({ mode: "audit" });
+    await expectCode(
+      verifyAuthorizeProofBundleForExecution(fixture.raw, fixture.trust, memoryReplayStore()),
+      AuthorizeVerificationErrorCode.TRUST_WINDOW
+    );
   });
 
   it("rejects raw-bundle ambiguity before cryptographic processing", async () => {
@@ -232,6 +253,11 @@ describe("sigil-sign-authorize-v1", () => {
     await expectCode(
       verifyAuthorizeProofBundleForAudit(tooLarge, fixture.trust, { verificationTime: NOW }),
       AuthorizeVerificationErrorCode.BUNDLE_TOO_LARGE
+    );
+    const deeplyNested = new TextEncoder().encode(`${"[".repeat(65)}0${"]".repeat(65)}`);
+    await expectCode(
+      verifyAuthorizeProofBundleForAudit(deeplyNested, fixture.trust, { verificationTime: NOW }),
+      AuthorizeVerificationErrorCode.BUNDLE_SCHEMA
     );
   });
 
@@ -318,11 +344,37 @@ describe("sigil-sign-authorize-v1", () => {
       verifyAuthorizeProofBundleForExecution(fixture.raw, fixture.trust, { consumeIfUnused: preConsumptionClockFence }),
       AuthorizeVerificationErrorCode.REPLAY_UNAVAILABLE
     );
-    expect(preConsumptionClockFence).toHaveBeenCalledWith(expect.any(String), NOW_SECONDS + 350, NOW_SECONDS, 30);
+    expect(preConsumptionClockFence).toHaveBeenCalledWith(
+      expect.any(String),
+      NOW_SECONDS + 50,
+      NOW_SECONDS + 350,
+      NOW_SECONDS,
+      30
+    );
     await expectCode(
       verifyAuthorizeProofBundleForExecution(fixture.raw, fixture.trust, { consumeIfUnused: () => Promise.resolve(undefined as never) }),
       AuthorizeVerificationErrorCode.REPLAY_UNAVAILABLE
     );
+    await expectCode(
+      verifyAuthorizeProofBundleForExecution(fixture.raw, fixture.trust, { consumeIfUnused: () => Promise.resolve({ status: "expired" as const }) }),
+      AuthorizeVerificationErrorCode.EXPIRED
+    );
+  });
+
+  it("does not return execution authority after replay consumption crosses expiry", async () => {
+    const fixture = await makeFixture({ expiresAt: NOW_SECONDS + 1 });
+    let consumed = false;
+    await expectCode(
+      verifyAuthorizeProofBundleForExecution(fixture.raw, fixture.trust, {
+        consumeIfUnused: () => {
+          consumed = true;
+          vi.advanceTimersByTime(2_000);
+          return Promise.resolve({ status: "consumed" as const });
+        },
+      }),
+      AuthorizeVerificationErrorCode.EXPIRED
+    );
+    expect(consumed).toBe(true);
   });
 
   it("publishes the complete stable public error vocabulary", () => {
