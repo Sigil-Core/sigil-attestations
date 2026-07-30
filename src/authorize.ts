@@ -224,10 +224,9 @@ const parseProofBundle = (value: unknown): SigilAuthorizeProofBundleV1 => {
   const framework = requireString(request.framework, "request.framework");
   const txCommit = requireString(request.txCommit, "request.txCommit");
   if (!HEX_64.test(txCommit)) fail(AuthorizeVerificationErrorCode.BUNDLE_SCHEMA, "request.txCommit must be lowercase SHA-256 hex");
-  if (!hasOwn(request, "intent") || !isRecord(request.intent)) {
-    fail(AuthorizeVerificationErrorCode.BUNDLE_SCHEMA, "request.intent must be a JSON object");
-  }
-  assertJsonValue(request.intent, "request.intent");
+  if (!hasOwn(request, "intent")) fail(AuthorizeVerificationErrorCode.BUNDLE_SCHEMA, "request.intent is required");
+  const intent = request.intent;
+  assertJsonValue(intent, "request.intent");
   const chainId = hasOwn(request, "chainId")
     ? requireInteger(request.chainId, "request.chainId", AuthorizeVerificationErrorCode.CLAIM_MISMATCH)
     : undefined;
@@ -250,7 +249,7 @@ const parseProofBundle = (value: unknown): SigilAuthorizeProofBundleV1 => {
       framework,
       ...(chainId === undefined ? {} : { chainId }),
       txCommit,
-      intent: request.intent as JsonValue,
+      intent,
     },
     policy: { warranty_md: warrantyMd },
     trust_reference: {

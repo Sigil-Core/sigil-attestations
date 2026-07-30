@@ -30,7 +30,7 @@ const expectCode = async (promise: Promise<unknown>, code: AuthorizeVerification
 
 // skipcq: JS-R1005 - One fixture factory deliberately exposes every independent signed-claim substitution used by this security suite.
 const makeFixture = async (overrides: {
-  intent?: Record<string, unknown>;
+  intent?: SigilAuthorizeProofBundleV1["request"]["intent"];
   requestTxCommit?: string;
   signedIntentHash?: string;
   signedPolicyHash?: string;
@@ -264,6 +264,23 @@ describe("sigil-sign-authorize-v1", () => {
       intent: { action: "wallet.transfer", targetAddress: "0x000000000000000000000000000000000000dEaD", amount: "1" },
     });
     await expect(verifyAuthorizeProofBundleForAudit(fixture.raw, fixture.trust, { verificationTime: NOW })).resolves.toMatchObject({ mode: "audit" });
+  });
+
+  it("accepts every JSON root type as a signed intent", async () => {
+    const intents: SigilAuthorizeProofBundleV1["request"]["intent"][] = [
+      null,
+      true,
+      7,
+      "tool-call",
+      [{ action: "web_fetch", url: "https://docs.sigilcore.com/cc-1" }],
+    ];
+    for (const intent of intents) {
+      const fixture = await makeFixture({ intent });
+      await expect(verifyAuthorizeProofBundleForAudit(fixture.raw, fixture.trust, { verificationTime: NOW })).resolves.toMatchObject({
+        mode: "audit",
+        txCommit: fixture.txCommit,
+      });
+    }
   });
 
   it("preserves audit evidence issued before routine key rotation", async () => {

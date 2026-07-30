@@ -33,7 +33,7 @@ The current Sigil Sign signer emits an EdDSA JWT with these load-bearing claims:
 | `chainId` | Optional positive safe integer. When present, it must exactly match the optional top-level request `chainId`. |
 | `agentId`, `framework`, `provenance` | Signer metadata. These do not replace request binding. |
 
-The profile intentionally does not require `payload.intent`, `targetAddress`, or any EVM-only field. Tool-call approvals bind through the commitment below.
+The profile intentionally does not require `payload.intent`, `targetAddress`, or any EVM-only field. `request.intent` accepts every JSON root type, including scalar and array tool-call batches. Approvals bind through the commitment below.
 
 ## Request binding: `pg-commit-v1`
 
