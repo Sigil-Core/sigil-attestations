@@ -1,6 +1,11 @@
 export { verifyIntentAttestation } from "./verify.js";
 export { verifyProvingGroundAttestation } from "./proving-ground.js";
 export {
+  validateAuthorizeTrust,
+  verifyAuthorizeProofBundleForAudit,
+  verifyAuthorizeProofBundleForExecution,
+} from "./authorize.js";
+export {
   fingerprintEd25519RawKey,
   fingerprintJwk,
   fingerprintPqcRawKey,
@@ -13,6 +18,8 @@ export {
   ExpiredAttestationError,
   InvalidPayloadError,
   InvalidSignatureError,
+  AuthorizeVerificationError,
+  AuthorizeVerificationErrorCode,
 } from "./errors.js";
 export type {
   Intent,
@@ -25,4 +32,13 @@ export type {
   TrustAttestationKey,
   TrustPqcKey,
   VerificationMode,
+  JsonValue,
+  SigilAuthorizeTrustV1,
+  AuthorizeTrustKey,
+  SigilAuthorizeProofBundleV1,
+  AuthorizeReplayStore,
+  AuthorizeReplayConsumeResult,
+  ExecutionAuthorizeProof,
+  AuditAuthorizeProof,
+  AuditAuthorizeProofOptions,
 } from "./types.js";

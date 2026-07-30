@@ -27,7 +27,19 @@ const requiredFiles = [
 ] as const;
 
 export const CANONICAL_POLICY_ENVELOPE_SCHEMA = "sigil-policy-canonical/v1";
-export const CANONICALIZER_VERSION = "@sigilcore/warrant-core@0.2.1";
+/** Version used when this release materializes a new proof-bundle envelope. */
+export const CANONICALIZER_VERSION = "@sigilcore/warrant-core@0.2.3";
+
+/**
+ * Verification-only compatibility for proof bundles already issued by the
+ * previous pinned verifier. New emitters must use CANONICALIZER_VERSION.
+ */
+export const HISTORICAL_CANONICALIZER_VERSION = "@sigilcore/warrant-core@0.2.1";
+
+const acceptedCanonicalizerVersions = new Set([
+  CANONICALIZER_VERSION,
+  HISTORICAL_CANONICALIZER_VERSION,
+]);
 
 const readUtf8 = async (bundlePath: string, name: string): Promise<string> => {
   try {
@@ -49,7 +61,11 @@ const parseJson = (text: string, name: string): Record<string, unknown> => {
 
 // skipcq: JS-R1005 - This centralized envelope guard preserves the canonical policy boundary before any signature or hash verification.
 const parseCanonicalPolicyEnvelope = (value: Record<string, unknown>): Record<string, unknown> => {
-  if (value.schema !== CANONICAL_POLICY_ENVELOPE_SCHEMA || value.canonicalizer !== CANONICALIZER_VERSION) {
+  if (
+    value.schema !== CANONICAL_POLICY_ENVELOPE_SCHEMA ||
+    typeof value.canonicalizer !== "string" ||
+    !acceptedCanonicalizerVersions.has(value.canonicalizer)
+  ) {
     throw new InvalidPayloadError("policy.canonical.json has an unsupported canonicalizer envelope");
   }
   if (typeof value.policy !== "object" || value.policy === null || Array.isArray(value.policy)) {
