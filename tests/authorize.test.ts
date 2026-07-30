@@ -27,6 +27,7 @@ const expectCode = async (promise: Promise<unknown>, code: AuthorizeVerification
   await expect(promise).rejects.toMatchObject({ code });
 };
 
+// skipcq: JS-R1005 - One fixture factory deliberately exposes every independent signed-claim substitution used by this security suite.
 const makeFixture = async (overrides: {
   intent?: Record<string, unknown>;
   requestTxCommit?: string;
@@ -114,13 +115,13 @@ const memoryReplayStore = (): AuthorizeReplayStore & {
     retainUntil,
     verificationTimes,
     maxClockDrifts,
-    async consumeIfUnused(replayId, expiration, verificationTime, maxClockDrift) {
+    consumeIfUnused(replayId, expiration, verificationTime, maxClockDrift) {
       retainUntil.push(expiration);
       verificationTimes.push(verificationTime);
       maxClockDrifts.push(maxClockDrift);
-      if (consumed.has(replayId)) return { status: "replayed" };
+      if (consumed.has(replayId)) return Promise.resolve({ status: "replayed" as const });
       consumed.add(replayId);
-      return { status: "consumed" };
+      return Promise.resolve({ status: "consumed" as const });
     },
   };
 };
@@ -188,7 +189,7 @@ describe("sigil-sign-authorize-v1", () => {
 
   it("rejects raw-bundle ambiguity before cryptographic processing", async () => {
     const fixture = await makeFixture();
-    const duplicate = new TextEncoder().encode(`{"bundle_version":"sigil-authorize-proof/v1","bundle_version":"sigil-authorize-proof/v1"}`);
+    const duplicate = new TextEncoder().encode('{"bundle_version":"sigil-authorize-proof/v1","bundle_version":"sigil-authorize-proof/v1"}');
     await expectCode(
       verifyAuthorizeProofBundleForAudit(duplicate, fixture.trust, { verificationTime: NOW }),
       AuthorizeVerificationErrorCode.BUNDLE_SCHEMA
@@ -279,18 +280,18 @@ describe("sigil-sign-authorize-v1", () => {
     );
     await expectCode(
       verifyAuthorizeProofBundleForExecution(fixture.raw, fixture.trust, {
-        consumeIfUnused: async () => { throw new Error("unavailable"); },
+        consumeIfUnused: () => Promise.reject(new Error("unavailable")),
       }),
       AuthorizeVerificationErrorCode.REPLAY_UNAVAILABLE
     );
-    const preConsumptionClockFence = vi.fn(async () => ({ status: "clock_drift" as const }));
+    const preConsumptionClockFence = vi.fn(() => Promise.resolve({ status: "clock_drift" as const }));
     await expectCode(
       verifyAuthorizeProofBundleForExecution(fixture.raw, fixture.trust, { consumeIfUnused: preConsumptionClockFence }),
       AuthorizeVerificationErrorCode.REPLAY_UNAVAILABLE
     );
     expect(preConsumptionClockFence).toHaveBeenCalledWith(expect.any(String), NOW_SECONDS + 350, NOW_SECONDS, 30);
     await expectCode(
-      verifyAuthorizeProofBundleForExecution(fixture.raw, fixture.trust, { consumeIfUnused: async () => undefined as never }),
+      verifyAuthorizeProofBundleForExecution(fixture.raw, fixture.trust, { consumeIfUnused: () => Promise.resolve(undefined as never) }),
       AuthorizeVerificationErrorCode.REPLAY_UNAVAILABLE
     );
   });

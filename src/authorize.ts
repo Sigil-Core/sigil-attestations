@@ -52,6 +52,7 @@ const assertExactKeys = (value: RecordValue, allowed: readonly string[], field: 
   }
 };
 
+// skipcq: JS-R1005 - Recursive JSON validation deliberately enumerates every accepted JSON type before proof parsing.
 const assertJsonValue: (value: unknown, field: string) => asserts value is JsonValue = (value, field) => {
   if (value === null || typeof value === "boolean" || typeof value === "string") return;
   if (typeof value === "number") {
@@ -69,37 +70,18 @@ const assertJsonValue: (value: unknown, field: string) => asserts value is JsonV
   fail(AuthorizeVerificationErrorCode.BUNDLE_SCHEMA, `${field} is not JSON`);
 };
 
-const decodeRawBundle = (rawBundle: Uint8Array): unknown => {
-  if (rawBundle.byteLength > BUNDLE_LIMIT_BYTES) {
-    fail(AuthorizeVerificationErrorCode.BUNDLE_TOO_LARGE, "proof bundle exceeds 1 MiB");
-  }
-  let text = "";
-  try {
-    text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(rawBundle);
-  } catch {
-    fail(AuthorizeVerificationErrorCode.BUNDLE_ENCODING, "proof bundle is not valid UTF-8");
-  }
-  if (text.charCodeAt(0) === 0xfeff || (rawBundle[0] === 0xef && rawBundle[1] === 0xbb && rawBundle[2] === 0xbf)) {
-    fail(AuthorizeVerificationErrorCode.BUNDLE_ENCODING, "proof bundle must not include a UTF-8 BOM");
-  }
-  assertNoDuplicateJsonProperties(text);
-  try {
-    return JSON.parse(text);
-  } catch {
-    fail(AuthorizeVerificationErrorCode.BUNDLE_SCHEMA, "proof bundle must contain valid JSON");
-  }
-};
-
 /**
  * JSON.parse loses duplicate-property evidence. This small lexical pass
  * validates JSON structure while retaining every decoded object key.
  */
 const assertNoDuplicateJsonProperties = (input: string): void => {
   let index = 0;
+  // skipcq: JS-R1005 - Whitespace is limited to the four JSON grammar code points before each parse step.
   const whitespace = (): void => {
     while (index < input.length && (input[index] === " " || input[index] === "\n" || input[index] === "\r" || input[index] === "\t")) index += 1;
   };
   const invalid = (): never => fail(AuthorizeVerificationErrorCode.BUNDLE_SCHEMA, "proof bundle must contain valid JSON");
+  // skipcq: JS-R1005 - This is an intentionally fail-closed JSON string scanner that retains exact object-key evidence.
   const string = (): string => {
     if (input[index] !== '"') invalid();
     const start = index;
@@ -129,6 +111,7 @@ const assertNoDuplicateJsonProperties = (input: string): void => {
     }
     return invalid();
   };
+  // skipcq: JS-R1005 - The recursive lexical parser preserves duplicate-key detection that JSON.parse discards.
   const value = (): void => {
     whitespace();
     const character = input[index];
@@ -195,6 +178,29 @@ const assertNoDuplicateJsonProperties = (input: string): void => {
   if (index !== input.length) invalid();
 };
 
+// skipcq: JS-R1005 - This raw-byte boundary checks every encoding ambiguity before JSON parsing or cryptographic work.
+const decodeRawBundle = (rawBundle: Uint8Array): unknown => {
+  if (rawBundle.byteLength > BUNDLE_LIMIT_BYTES) {
+    return fail(AuthorizeVerificationErrorCode.BUNDLE_TOO_LARGE, "proof bundle exceeds 1 MiB");
+  }
+  let text = "";
+  try {
+    text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(rawBundle);
+  } catch {
+    return fail(AuthorizeVerificationErrorCode.BUNDLE_ENCODING, "proof bundle is not valid UTF-8");
+  }
+  if (text.charCodeAt(0) === 0xfeff || (rawBundle[0] === 0xef && rawBundle[1] === 0xbb && rawBundle[2] === 0xbf)) {
+    return fail(AuthorizeVerificationErrorCode.BUNDLE_ENCODING, "proof bundle must not include a UTF-8 BOM");
+  }
+  assertNoDuplicateJsonProperties(text);
+  try {
+    return JSON.parse(text);
+  } catch {
+    return fail(AuthorizeVerificationErrorCode.BUNDLE_SCHEMA, "proof bundle must contain valid JSON");
+  }
+};
+
+// skipcq: JS-R1005 - This explicit schema boundary rejects ambiguous proof fields before signature verification.
 const parseProofBundle = (value: unknown): SigilAuthorizeProofBundleV1 => {
   if (!isRecord(value)) fail(AuthorizeVerificationErrorCode.BUNDLE_SCHEMA, "proof bundle must be an object");
   const bundle = value as RecordValue;
@@ -250,6 +256,7 @@ const parseProofBundle = (value: unknown): SigilAuthorizeProofBundleV1 => {
   };
 };
 
+// skipcq: JS-R1005 - Trust-key validation intentionally checks every authority-bearing member before importJWK.
 const requireTrustKey = (value: unknown): AuthorizeTrustKey => {
   if (!isRecord(value)) fail(AuthorizeVerificationErrorCode.BUNDLE_SCHEMA, "trust key must be an object");
   const key = value as RecordValue;
@@ -284,6 +291,7 @@ const requireTrustKey = (value: unknown): AuthorizeTrustKey => {
 };
 
 /** Validate an independently obtained v1 trust configuration before use. */
+// skipcq: JS-R1005 - The trust-root schema must reject every malformed key list and duplicate kid before use.
 export const validateAuthorizeTrust = (value: unknown): SigilAuthorizeTrustV1 => {
   if (!isRecord(value)) fail(AuthorizeVerificationErrorCode.BUNDLE_SCHEMA, "trust configuration must be an object");
   const trust = value as RecordValue;
@@ -321,6 +329,7 @@ const sameText = (left: string, right: string): boolean => {
   return difference === 0;
 };
 
+// skipcq: JS-R1005 - This ordered JWT boundary verifies EdDSA before admitting claims to the authorization path.
 const readPayload = async (bundle: SigilAuthorizeProofBundleV1, trust: SigilAuthorizeTrustV1): Promise<{ payload: RecordValue; key: AuthorizeTrustKey; headerKid: string }> => {
   let header: RecordValue = {};
   try {
@@ -369,6 +378,7 @@ const readChainId = (value: RecordValue, field: string): number | undefined => {
 const isEvmIntent = (intent: JsonValue): boolean =>
   isRecord(intent) && (typeof intent.targetAddress === "string" || (typeof intent.action === "string" && intent.action.startsWith("wallet.")));
 
+// skipcq: JS-R1005 - Each independent claim and trust-window condition is fail-closed and security relevant.
 const validateClaims = (
   bundle: SigilAuthorizeProofBundleV1,
   trust: SigilAuthorizeTrustV1,
@@ -413,6 +423,7 @@ const validateClaims = (
   };
 };
 
+// skipcq: JS-R1005 - Commitment and strict-Warrant checks remain sequenced to preserve distinct stable failure codes.
 const verifyCommitmentAndPolicy = async (
   bundle: SigilAuthorizeProofBundleV1,
   signedIntentHash: string,
@@ -485,6 +496,7 @@ const verifyBase = async (
  * Verify an authority-bearing authorization. The caller supplies a durable
  * atomic replay adapter. No caller-controlled execution time is accepted.
  */
+// skipcq: JS-R1005 - The authorization path keeps replay and clock-fence outcomes explicit and fail-closed.
 export const verifyAuthorizeProofBundleForExecution = async (
   rawBundle: Uint8Array,
   trust: SigilAuthorizeTrustV1,
