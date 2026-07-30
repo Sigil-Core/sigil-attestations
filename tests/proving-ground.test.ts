@@ -6,9 +6,17 @@ import { afterEach, describe, expect, it } from "vitest";
 import { decodeJwt, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { appendSignatureBlock, hashPgCommitV1, hashPolicy, parsePolicyMarkdown } from "@sigilcore/warrant-core";
 import { createNodeCryptoAdapter } from "@sigilcore/warrant-core/crypto/node";
+import {
+  canonicalizePolicyObject as canonicalizePolicyObjectFrom021,
+  parsePolicyMarkdown as parsePolicyMarkdownFrom021,
+} from "warrant-core-0-2-1-fixture";
 import { verifyProvingGroundAttestation } from "../src/index.js";
 import { verifyProofBundle } from "../src/node.js";
-import { CANONICALIZER_VERSION, CANONICAL_POLICY_ENVELOPE_SCHEMA } from "../src/bundle.js";
+import {
+  CANONICALIZER_VERSION,
+  CANONICAL_POLICY_ENVELOPE_SCHEMA,
+  HISTORICAL_CANONICALIZER_VERSION,
+} from "../src/bundle.js";
 import { fingerprintEd25519RawKey, fingerprintJwk, fingerprintPqcRawKey, validateTrustManifest } from "../src/trust.js";
 import type { SigilTrustManifestV1, VerificationMode } from "../src/types.js";
 
@@ -276,9 +284,18 @@ describe("Proving Ground verifier profile", () => {
   });
 
   it("binds the response, canonicalizer, PQC snapshot, and trust lifecycle", async () => {
-    expect(CANONICALIZER_VERSION).toBe("@sigilcore/warrant-core@0.2.1");
+    expect(CANONICALIZER_VERSION).toBe("@sigilcore/warrant-core@0.2.3");
     const responseMismatch = await makeArtifacts({ responseAttestation: "not-the-attestation" });
     await expect(verifyProofBundle({ bundlePath: responseMismatch.directory, trust: responseMismatch.trust, now: NOW })).rejects.toThrow("response.json intent_attestation");
+
+    const historicalCanonicalizer = await makeArtifacts({ canonical: {
+      schema: CANONICAL_POLICY_ENVELOPE_SCHEMA,
+      canonicalizer: HISTORICAL_CANONICALIZER_VERSION,
+      policy: JSON.parse(canonicalizePolicyObjectFrom021(parsePolicyMarkdownFrom021(WARRANTY))),
+    } });
+    await expect(verifyProofBundle({ bundlePath: historicalCanonicalizer.directory, trust: historicalCanonicalizer.trust, now: NOW })).resolves.toMatchObject({
+      operatorSignatureValid: true,
+    });
 
     const canonicalizerMismatch = await makeArtifacts();
     const canonical = JSON.parse(await readFile(join(canonicalizerMismatch.directory, "policy.canonical.json"), "utf8"));

@@ -2,6 +2,20 @@
 
 This document defines the `pg-commit-v1` verifier profile for signed Sigil Sign approvals. It supplements the existing strict `verifyIntentAttestation` API. It does not replace it. The package root remains browser and Workers safe; Node-only unpacked-bundle verification is available from `sigil-attestations/node` and through the `sigil-verify` CLI.
 
+## CC-1 authorization-proof API
+
+The package root also exports the browser and Workers-safe `sigil-sign-authorize-v1` verifier:
+
+- `verifyAuthorizeProofBundleForExecution(rawBundle, trust, replayStore)` returns the nominal `ExecutionAuthorizeProof` with `mode: "execution"` only for a currently valid proof and only after the caller's durable replay store atomically consumes it.
+- `verifyAuthorizeProofBundleForAudit(rawBundle, trust, { verificationTime })` verifies historical evidence without replay access. It returns `expiredAtVerification` for evidence that expired before the supplied verification time and never returns execution authority.
+- `validateAuthorizeTrust(trust)` validates the externally acquired `sigil-authorize-trust/v1` configuration. The proof bundle carries a matching reference only. It never supplies a trust root or a bearer key.
+
+Both APIs accept no more than 1 MiB of raw JSON and require a strict signed Warrant no larger than 256 KiB. The Warrant frame must have UTF-8 bytes without a BOM, carriage return, or NUL; a final literal `## signature` heading; and one canonical base64url `sigil-sig` value. The verifier derives `policyHash` from the framed unsigned bytes with `@sigilcore/warrant-core@0.2.3`.
+
+The execution replay store must atomically compare its authoritative clock with the supplied verifier time before marking a replay id used. When the absolute difference exceeds 30 seconds, it returns `clock_drift` without consuming the proof. It returns `replayed` only for an already-consumed proof and `consumed` only after a successful write retained through `exp + 300` seconds.
+
+This CC-1 API is distinct from the legacy unpacked directory profile below. That profile remains available to verify already-issued proof bundles.
+
 ## Signed claim set
 
 The current Sigil Sign signer emits an EdDSA JWT with these load-bearing claims:
@@ -21,7 +35,7 @@ The profile intentionally does not require `payload.intent`, `targetAddress`, or
 
 ## Request binding: `pg-commit-v1`
 
-The proxy computes `txCommit` as lowercase SHA-256 hex over the UTF-8 bytes of `canonicalizePgCommitV1(intent)` from `@sigilcore/warrant-core@0.2.1`.
+The proxy computes `txCommit` as lowercase SHA-256 hex over the UTF-8 bytes of `canonicalizePgCommitV1(intent)` from `@sigilcore/warrant-core@0.2.3`.
 
 - Object keys sort by ECMAScript UTF-16 code-unit order.
 - Array order remains unchanged.
@@ -78,19 +92,19 @@ pqc-keys.json
 VERIFY.md
 ```
 
-`response.json.intent_attestation` must byte-match `attestation.jwt`. `warranty.md` must carry a final `## signature` block. The verifier checks that signature over the unsigned Warrant bytes, parses the Warrant with `@sigilcore/warrant-core@0.2.1`, and derives its hash independently.
+`response.json.intent_attestation` must byte-match `attestation.jwt`. `warranty.md` must carry a final `## signature` block. The verifier checks that signature over the unsigned Warrant bytes, parses the Warrant with `@sigilcore/warrant-core@0.2.3`, and derives its hash independently.
 
 `policy.canonical.json` uses this versioned envelope. Metadata never enters the policy hash:
 
 ```json
 {
   "schema": "sigil-policy-canonical/v1",
-  "canonicalizer": "@sigilcore/warrant-core@0.2.1",
+  "canonicalizer": "@sigilcore/warrant-core@0.2.3",
   "policy": { "version": "2.1.0" }
 }
 ```
 
-The verifier requires the pinned `canonicalizer` identifier, canonical equality between `policy` and the parsed Warrant, equality between the two independently derived policy hashes, and equality with the signed `policyHash`.
+New proof bundles must use the current `@sigilcore/warrant-core@0.2.3` identifier. To retain independently verifiable historical evidence, the verifier also accepts `@sigilcore/warrant-core@0.2.1` only for already-issued `sigil-policy-canonical/v1` envelopes. It rejects every other identifier. For either accepted identifier, the verifier requires canonical equality between `policy` and the parsed Warrant, equality between the two independently derived policy hashes, and equality with the signed `policyHash`.
 
 `pqc-keys.json` and `VERIFY.md` remain required release-bundle materials but are informational in this EdDSA-only verifier milestone. The verifier does not verify ML-DSA-65 signatures, but it requires the declared `pqcKey.kid` and raw-key SHA-256 fingerprint in the separately supplied trust manifest to match the bundle snapshot. ML-DSA-65 signature verification is deferred.
 
@@ -106,7 +120,7 @@ sigil-verify --bundle ./proof-bundle --trust ./sigil-trust.v1.json --mode audit 
 
 ### Warrant Builder: no user-interface or signing change in Phase 2
 
-The verifier consumes a downloaded signed Warrant through the exact `@sigilcore/warrant-core@0.2.1` parser and canonicalizer. It adds no Builder field, import rule, signing path, preview behavior, download format, deployment behavior, migration, or round-trip change. The release gate is the already-required Phase 1 Builder regression evidence plus this verifier's derived-policy test. Any policy hash difference between Builder output and the shared core blocks fixture release.
+The verifier consumes a downloaded signed Warrant through the exact `@sigilcore/warrant-core@0.2.3` parser and canonicalizer. It adds no Builder field, import rule, signing path, preview behavior, download format, deployment behavior, migration, or round-trip change. The release gate is the existing Builder regression evidence plus this verifier's derived-policy test. Any policy hash difference between Builder output and the shared core blocks fixture release.
 
 ### Manual Warrant: no grid, sample, or authoring-flow change in Phase 2
 

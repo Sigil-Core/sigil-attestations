@@ -27,6 +27,20 @@ This repository does **not** contain private keys, signing infrastructure, polic
 
 ---
 
+## CC-1 authorization proof verification
+
+The package root exports `sigil-sign-authorize-v1` verification for raw proof-bundle bytes. The caller must acquire `sigil-authorize-trust/v1` separately. A proof bundle can reference that trust configuration, but cannot supply a trust root or a bearer key.
+
+- `verifyAuthorizeProofBundleForExecution(rawBundle, trust, replayStore)` requires a currently valid 60-second authorization and an atomic, durable replay-store consumption. Its `mode: "execution"` nominal result is the only execution-authorization result. The store must reject more than 30 seconds of clock drift before consuming the proof and retain accepted replay identifiers through `exp + 300` seconds.
+- `verifyAuthorizeProofBundleForAudit(rawBundle, trust, { verificationTime })` verifies historical evidence without reading or writing replay state. It reports expiry at that time and cannot grant execution authority.
+- Both APIs require a strict CC-1 signed Warrant, derive the policy hash from its unsigned bytes through the exact `@sigilcore/warrant-core@0.2.3` dependency, and reject bundles larger than 1 MiB or Warrants larger than 256 KiB.
+
+The older `sigil-verify` directory-bundle interface remains available for historical Proving Ground evidence. It emits current policy envelopes with `@sigilcore/warrant-core@0.2.3` and accepts the prior `0.2.1` identifier only to verify already-issued `sigil-policy-canonical/v1` bundles.
+
+Warrant Builder and Manual Warrant receive no UI, authoring, signing, import, preview, download, deployment, migration, or round-trip change from this verifier. Builder and Manual artifacts remain inputs to verification. Release evidence must include the relevant authoring-surface regressions and the CC-1 derived-policy checks.
+
+---
+
 ## Proving Ground verifier release
 
 The final Proving Ground verifier is the GitHub Release [`v0.2.0`](https://github.com/Sigil-Core/sigil-attestations/releases/tag/v0.2.0). It promotes the unchanged `v0.2.0-rc.2` candidate at commit [`568a327224477e7416688c3cfdb50bbac4950bfb`](https://github.com/Sigil-Core/sigil-attestations/commit/568a327224477e7416688c3cfdb50bbac4950bfb). This launch uses GitHub Release artifacts only. It does not publish the verifier to npm.

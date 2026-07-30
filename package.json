@@ -31,12 +31,13 @@
     "test:packed-cli": "node scripts/test-packed-cli.mjs"
   },
   "dependencies": {
-    "@sigilcore/warrant-core": "0.2.1",
+    "@sigilcore/warrant-core": "0.2.3",
     "jose": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
     "typescript": "^5.0.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "warrant-core-0-2-1-fixture": "npm:@sigilcore/warrant-core@0.2.1"
   }
 }
