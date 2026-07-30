@@ -139,6 +139,8 @@ describe("sigil-sign-authorize-v1", () => {
       mode: "audit",
       profile: "sigil-sign-authorize-v1",
       issuer: "sigil-core",
+      agentId: "cc1-agent",
+      framework: "agentkit",
       txCommit: fixture.txCommit,
       policyHash: fixture.policyHash,
       expiredAtVerification: false,
@@ -155,7 +157,18 @@ describe("sigil-sign-authorize-v1", () => {
       intent: { action: "wallet.transfer", targetAddress: "0x000000000000000000000000000000000000dEaD", amount: "1" },
       chainId: 1,
     });
-    await expect(verifyAuthorizeProofBundleForAudit(fixture.raw, fixture.trust, { verificationTime: NOW })).resolves.toMatchObject({ mode: "audit" });
+    await expect(verifyAuthorizeProofBundleForAudit(fixture.raw, fixture.trust, { verificationTime: NOW })).resolves.toMatchObject({
+      mode: "audit",
+      agentId: "cc1-agent",
+      framework: "agentkit",
+      chainId: 1,
+    });
+    await expect(verifyAuthorizeProofBundleForExecution(fixture.raw, fixture.trust, memoryReplayStore())).resolves.toMatchObject({
+      mode: "execution",
+      agentId: "cc1-agent",
+      framework: "agentkit",
+      chainId: 1,
+    });
     const withoutChain = { ...fixture.bundle, request: { ...fixture.bundle.request } };
     delete withoutChain.request.chainId;
     await expectCode(

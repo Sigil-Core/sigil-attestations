@@ -6,8 +6,8 @@ This document defines the `pg-commit-v1` verifier profile for signed Sigil Sign 
 
 The package root also exports the browser and Workers-safe `sigil-sign-authorize-v1` verifier:
 
-- `verifyAuthorizeProofBundleForExecution(rawBundle, trust, replayStore)` returns the nominal `ExecutionAuthorizeProof` with `mode: "execution"` only for a currently valid proof and only after the caller's durable replay store atomically consumes it.
-- `verifyAuthorizeProofBundleForAudit(rawBundle, trust, { verificationTime })` verifies historical evidence without replay access. It returns `expiredAtVerification` for evidence that expired before the supplied verification time and never returns execution authority.
+- `verifyAuthorizeProofBundleForExecution(rawBundle, trust, replayStore)` returns the nominal `ExecutionAuthorizeProof` with `mode: "execution"` only for a currently valid proof and only after the caller's durable replay store atomically consumes it. The authority includes the authenticated `agentId`, `framework`, and optional `chainId` request scope.
+- `verifyAuthorizeProofBundleForAudit(rawBundle, trust, { verificationTime })` verifies historical evidence without replay access. It returns the same authenticated request scope and `expiredAtVerification` for evidence that expired before the supplied verification time; it never returns execution authority.
 - `validateAuthorizeTrust(trust)` validates the externally acquired `sigil-authorize-trust/v1` configuration. The proof bundle carries a matching reference only. It never supplies a trust root or a bearer key.
 
 Both APIs accept no more than 1 MiB of raw JSON and require a strict signed Warrant no larger than 256 KiB. The Warrant frame must have UTF-8 bytes without a BOM, carriage return, or NUL; a final literal `## signature` heading; and one canonical base64url `sigil-sig` value. The verifier derives `policyHash` from the framed unsigned bytes with `@sigilcore/warrant-core@0.2.3`.

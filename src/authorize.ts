@@ -420,7 +420,9 @@ const validateClaims = (
   }
   const payloadKid = requireClaimString(payload, "kid");
   if (!sameText(payloadKid, headerKid)) fail(AuthorizeVerificationErrorCode.KID_MISMATCH, "token header and payload kid differ");
-  if (!sameText(requireClaimString(payload, "agentId"), bundle.request.agentId) || !sameText(requireClaimString(payload, "framework"), bundle.request.framework)) {
+  const agentId = requireClaimString(payload, "agentId");
+  const framework = requireClaimString(payload, "framework");
+  if (!sameText(agentId, bundle.request.agentId) || !sameText(framework, bundle.request.framework)) {
     fail(AuthorizeVerificationErrorCode.CLAIM_MISMATCH, "token identity claims do not match request");
   }
   const signedChainId = readChainId(payload, "token chainId");
@@ -445,6 +447,9 @@ const validateClaims = (
   return {
     issuer,
     kid: payloadKid,
+    agentId,
+    framework,
+    ...(signedChainId === undefined ? {} : { chainId: signedChainId }),
     issuedAt: iat,
     expiresAt: exp,
     intentHash: requireHash(payload.intentHash, "token intentHash", AuthorizeVerificationErrorCode.INTENT_HASH_MISMATCH),
@@ -512,6 +517,9 @@ const verifyBase = async (
       profile: "sigil-sign-authorize-v1",
       issuer: claims.issuer,
       kid: claims.kid,
+      agentId: claims.agentId,
+      framework: claims.framework,
+      ...(claims.chainId === undefined ? {} : { chainId: claims.chainId }),
       txCommit: hashes.txCommit,
       intentHash: hashes.intentHash,
       policyHash: hashes.policyHash,

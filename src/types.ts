@@ -191,6 +191,12 @@ export interface AuthorizeProofCommon {
   profile: "sigil-sign-authorize-v1";
   issuer: string;
   kid: string;
+  /** Authenticated request identity. */
+  agentId: string;
+  /** Authenticated request framework. */
+  framework: string;
+  /** Authenticated optional request chain scope. */
+  chainId?: number;
   txCommit: string;
   intentHash: string;
   policyHash: string;
