@@ -73,3 +73,44 @@ jobs:
           gh release create "$GITHUB_REF_NAME" sigil-attestations-*.tgz
           sigil-attestations-*.tgz.sha256 --title "$GITHUB_REF_NAME"
           --notes-file RELEASE-CANDIDATE.md --verify-tag
+
+  publish:
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download tested candidate package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: verifier-candidate-${{ github.ref_name }}
+          path: .
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Require the npm trusted-publishing runtime
+        run: |
+          node --input-type=module -e "const [major, minor] = process.versions.node.split('.').map(Number); if (major < 22 || (major === 22 && minor < 14)) process.exit(1)"
+          npm install --global npm@11.5.1
+          node --input-type=module -e "const { execFileSync } = await import('node:child_process'); const [major, minor, patch] = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim().split('.').map(Number); if (major < 11 || (major === 11 && (minor < 5 || (minor === 5 && patch < 1)))) process.exit(1)"
+      - name: Refuse an existing immutable npm version
+        env:
+          PACKAGE_VERSION: ${{ github.ref_name }}
+        run: |
+          package_version="${PACKAGE_VERSION#v}"
+          if npm view "sigil-attestations@${package_version}" version --json > /tmp/npm-existing.json 2> /tmp/npm-view.err; then
+            echo "npm version already exists: sigil-attestations@${package_version}"
+            exit 1
+          fi
+          if ! grep -Eq "E404|404 Not Found" /tmp/npm-view.err; then
+            cat /tmp/npm-view.err
+            exit 1
+          fi
+      - name: Publish prerelease with npm trusted publishing and provenance
+        run: |
+          package_file="$(find . -maxdepth 1 -name 'sigil-attestations-*.tgz' -print -quit)"
+          test -n "$package_file"
+          npm publish "$package_file" --access public --tag next --provenance

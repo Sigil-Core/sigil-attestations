@@ -43,6 +43,16 @@ Warrant Builder and Manual Warrant receive no UI, authoring, signing, import, pr
 
 ## Proving Ground verifier release
 
+The CC-1 raw-proof verifier is available as the immutable npm prerelease `sigil-attestations@0.2.1-rc.1`. Install the exact version so prerelease updates cannot move the dependency implicitly:
+
+```sh
+npm install --save-exact sigil-attestations@0.2.1-rc.1
+```
+
+This prerelease uses the npm `next` dist-tag and carries registry provenance from the repository's trusted GitHub Actions publisher. It is not the stable `latest` release.
+
+### Historical Proving Ground release
+
 The final Proving Ground verifier is the GitHub Release [`v0.2.0`](https://github.com/Sigil-Core/sigil-attestations/releases/tag/v0.2.0). It promotes the unchanged `v0.2.0-rc.2` candidate at commit [`568a327224477e7416688c3cfdb50bbac4950bfb`](https://github.com/Sigil-Core/sigil-attestations/commit/568a327224477e7416688c3cfdb50bbac4950bfb). This launch uses GitHub Release artifacts only. It does not publish the verifier to npm.
 
 The final release retains the immutable candidate artifact name and bytes:
