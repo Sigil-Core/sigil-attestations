@@ -44,16 +44,11 @@ describe("final promotion workflow", () => {
     expect(workflow).not.toContain('gh release view "$GITHUB_REF_NAME"');
   });
 
-  it("limits the first-publication token to rc.1 and uses trusted publishing afterward", async () => {
+  it("publishes prereleases only through npm trusted publishing", async () => {
     const workflow = await readFile(releaseWorkflowPath, "utf8");
-    const bootstrapStep = workflowStep(workflow, "Require the one-time first-publication credential");
-    const bootstrapPublishStep = workflowStep(
+    const publishStep = workflowStep(
       workflow,
-      "Publish first prerelease with the one-time credential and provenance",
-    );
-    const trustedPublishStep = workflowStep(
-      workflow,
-      "Publish later prereleases with npm trusted publishing and provenance",
+      "Publish prerelease with npm trusted publishing and provenance",
     );
     expect(workflow).toContain(
       "publish:\n    needs: [build, release]\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read\n      id-token: write",
@@ -63,23 +58,11 @@ describe("final promotion workflow", () => {
     expect(workflow).toContain("minor < 5 || (minor === 5 && patch < 1)");
     expect(workflow).not.toContain("npm install --global");
     expect(workflow).toContain("Refuse an existing immutable npm version");
-    expect(bootstrapStep).toContain("if: github.ref_name == 'v0.2.1-rc.1'");
-    expect(bootstrapStep).toMatch(
-      /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_BOOTSTRAP_TOKEN \}\}/,
-    );
-    expect(bootstrapStep).toContain('run: test -n "$NODE_AUTH_TOKEN"');
-    expect(bootstrapPublishStep).toContain("if: github.ref_name == 'v0.2.1-rc.1'");
-    expect(bootstrapPublishStep).toMatch(
-      /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_BOOTSTRAP_TOKEN \}\}/,
-    );
-    expect(bootstrapPublishStep).toContain(
+    expect(workflow).not.toContain("NPM_BOOTSTRAP_TOKEN");
+    expect(workflow).not.toContain("NODE_AUTH_TOKEN");
+    expect(publishStep).toContain(
       'npm publish "$package_file" --access public --tag next --provenance',
     );
-    expect(trustedPublishStep).toContain("if: github.ref_name != 'v0.2.1-rc.1'");
-    expect(trustedPublishStep).toContain(
-      'npm publish "$package_file" --access public --tag next --provenance',
-    );
-    expect(trustedPublishStep).not.toContain("NODE_AUTH_TOKEN");
-    expect(trustedPublishStep).not.toContain("NPM_TOKEN");
+    expect(publishStep).not.toContain("NPM_TOKEN");
   });
 });
