@@ -1,6 +1,6 @@
 # Release Candidate Procedure
 
-Proposed CC-1 verifier candidate: `v0.2.1-rc.1`.
+Proposed RC-1 verifier candidate: `v0.2.1-rc.1`.
 
 The RC workflow runs the full test suite, builds, packs, installs the tarball into an isolated temporary consumer, and invokes `sigil-verify --help`. It creates the matching GitHub Release with `--verify-tag`, attaches the tested tarball and checksum, then publishes the same package as `sigil-attestations@0.2.1-rc.1` under the npm `next` dist-tag with provenance. Because the package name is unclaimed, this first publication alone uses the repository's one-time `NPM_BOOTSTRAP_TOKEN`; the secret must be deleted immediately after the registry version is verified. Later candidates use npm trusted publishing through the same workflow without a repository token. The release command fails instead of replacing an existing release for that tag. GitHub immutable releases must be enabled before the tag is created. npm package versions cannot be overwritten after publication, so any code or artifact change requires a new release-candidate version.
 
