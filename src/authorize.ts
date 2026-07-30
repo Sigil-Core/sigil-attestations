@@ -261,6 +261,16 @@ const parseProofBundle = (value: unknown): SigilAuthorizeProofBundleV1 => {
   };
 };
 
+// skipcq: JS-R1005 - Compact JWS and JWK segments must reject padding and non-zero unused bits before trust or replay processing.
+const isCanonicalBase64urlSegment = (segment: string): boolean => {
+  if (!BASE64URL.test(segment)) return false;
+  const remainder = segment.length % 4;
+  if (remainder === 1) return false;
+  if (remainder === 0) return true;
+  const lastCharacter = BASE64URL_ALPHABET.indexOf(segment[segment.length - 1]);
+  return remainder === 2 ? (lastCharacter & 0x0f) === 0 : (lastCharacter & 0x03) === 0;
+};
+
 // skipcq: JS-R1005 - Trust-key validation intentionally checks every authority-bearing member before importJWK.
 const requireTrustKey = (value: unknown): AuthorizeTrustKey => {
   if (!isRecord(value)) fail(AuthorizeVerificationErrorCode.BUNDLE_SCHEMA, "trust key must be an object");
@@ -333,16 +343,6 @@ const webCryptoAdapter = () => {
 const hex = (bytes: Uint8Array): string => Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
 
 const sameText = (left: string, right: string): boolean => left === right;
-
-// skipcq: JS-R1005 - Compact JWS segments must reject padding and non-zero unused bits before replay-id derivation.
-const isCanonicalBase64urlSegment = (segment: string): boolean => {
-  if (!BASE64URL.test(segment)) return false;
-  const remainder = segment.length % 4;
-  if (remainder === 1) return false;
-  if (remainder === 0) return true;
-  const lastCharacter = BASE64URL_ALPHABET.indexOf(segment[segment.length - 1]);
-  return remainder === 2 ? (lastCharacter & 0x0f) === 0 : (lastCharacter & 0x03) === 0;
-};
 
 const assertCanonicalCompactJws = (token: string): void => {
   const segments = token.split(".");
