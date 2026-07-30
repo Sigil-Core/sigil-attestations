@@ -4,6 +4,13 @@ import { describe, expect, it } from "vitest";
 const workflowPath = new URL("../.github/workflows/promote-final.yml", import.meta.url);
 const releaseWorkflowPath = new URL("../.github/workflows/release-rc.yml", import.meta.url);
 const shellVariable = (name: string): string => [String.fromCharCode(36), "{", name, "}"].join("");
+const workflowStep = (workflow: string, name: string): string => {
+  const marker = `      - name: ${name}`;
+  const start = workflow.indexOf(marker);
+  expect(start).toBeGreaterThanOrEqual(0);
+  const next = workflow.indexOf("\n      - name:", start + marker.length);
+  return workflow.slice(start, next === -1 ? undefined : next);
+};
 
 describe("final promotion workflow", () => {
   it("requires one same-commit immutable candidate release", async () => {
@@ -37,8 +44,10 @@ describe("final promotion workflow", () => {
     expect(workflow).not.toContain('gh release view "$GITHUB_REF_NAME"');
   });
 
-  it("publishes prereleases through npm trusted publishing without a long-lived token", async () => {
+  it("limits the first-publication token to rc.1 and uses trusted publishing afterward", async () => {
     const workflow = await readFile(releaseWorkflowPath, "utf8");
+    const bootstrapStep = workflowStep(workflow, "Require the one-time first-publication credential");
+    const publishStep = workflowStep(workflow, "Publish prerelease with npm trusted publishing and provenance");
     expect(workflow).toContain(
       "publish:\n    needs: [build, release]\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read\n      id-token: write",
     );
@@ -47,9 +56,13 @@ describe("final promotion workflow", () => {
     expect(workflow).toContain("minor < 5 || (minor === 5 && patch < 1)");
     expect(workflow).not.toContain("npm install --global");
     expect(workflow).toContain("Refuse an existing immutable npm version");
-    expect(workflow).toContain('npm publish "$package_file" --access public --tag next --provenance');
-    for (const credentialVariable of ["NODE_AUTH_TOKEN", "NPM_TOKEN"]) {
-      expect(workflow).not.toContain(credentialVariable);
-    }
+    expect(bootstrapStep).toContain("if: github.ref_name == 'v0.2.1-rc.1'");
+    expect(bootstrapStep).toContain("NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}");
+    expect(bootstrapStep).toContain('run: test -n "$NODE_AUTH_TOKEN"');
+    expect(publishStep).toContain(
+      "NODE_AUTH_TOKEN: ${{ github.ref_name == 'v0.2.1-rc.1' && secrets.NPM_BOOTSTRAP_TOKEN || '' }}",
+    );
+    expect(publishStep).toContain('npm publish "$package_file" --access public --tag next --provenance');
+    expect(publishStep).not.toContain("NPM_TOKEN");
   });
 });
