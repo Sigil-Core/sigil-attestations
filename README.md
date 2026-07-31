@@ -25,6 +25,14 @@ For the Proving Ground profile, see [`ATTESTATION-CONTRACT.md`](./ATTESTATION-CO
 
 This repository does **not** contain private keys, signing infrastructure, policy engines, or production execution code.
 
+## Development dependency contract
+
+Use Node 22.22.0 and npm 11.12.1. Install npm with
+`npm install --global npm@11.12.1`, then install the reviewed dependency tree
+with `npm ci`; do not regenerate `package-lock.json` during normal development. The
+direct Vitest, Vite, PostCSS, and esbuild dependencies keep the browser
+root-import test explicit while pinning the audited development toolchain.
+
 ---
 
 ## CC-1 authorization proof verification
