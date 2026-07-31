@@ -2,7 +2,7 @@
 
 reviews:
   auto_review:
-    enabled: true
+    enabled: false
 
   path_instructions:
     # Review finding rejected 2026-07-29 (raised HIGH on sigil-vault and sigil-command).
