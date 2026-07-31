@@ -18,10 +18,17 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # v4.0.4
         with:
-          node-version: 22
+          node-version: 22.22.0
           cache: npm
+      - name: Pin and assert the package-manager contract
+        run: |
+          npm install --prefix "$RUNNER_TEMP/npm-11.12.1" npm@11.12.1 --ignore-scripts
+          export PATH="$RUNNER_TEMP/npm-11.12.1/node_modules/.bin:$PATH"
+          test "$(node --version)" = v22.22.0
+          test "$(npm --version)" = 11.12.1
+          printf '%s\n' "$RUNNER_TEMP/npm-11.12.1/node_modules/.bin" >> "$GITHUB_PATH"
       - run: npm ci
       - run: npm test
       - run: npm run build
