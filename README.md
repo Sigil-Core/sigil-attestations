@@ -153,7 +153,7 @@ An Intent Attestation is an **Ed25519 (EdDSA) signed JWT** that binds:
 
 The attestation proves that a transaction intent passed deterministic policy evaluation (Sigil Lex) at issuance time, and which policy version made that decision.
 
-**Note on PENDING state:** When a Sigil Lex Class 3 consensus hold is triggered, no Intent Attestation is issued. The `/v1/authorize` endpoint returns a `202 PENDING` response with a `holdId` instead. Intent Attestation issuance is deferred until the hold is resolved through Sigil Command. Downstream verifiers (including sigil-vault) must treat an absent attestation for a PENDING hold as a structurally valid non-authorization, not an error.
+**Note on PENDING state:** When a Sigil Lex Class 3 consensus hold is triggered, no Intent Attestation is issued. The `/v1/authorize` endpoint returns a `202 PENDING` response with a `holdId` instead. `PENDING` is a non-authorization, and the current task must not retry or execute it. A signer that supports hold resolution may accept only an authenticated out-of-band decision and then reauthorize the exact held intent. Any resulting Intent Attestation is newly issued and separate from the pending result. Downstream verifiers, including sigil-vault, must treat an absent attestation for a PENDING hold as a structurally valid non-authorization, not an error.
 
 ---
 
