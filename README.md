@@ -51,13 +51,13 @@ Warrant Builder and Manual Warrant receive no UI, authoring, signing, import, pr
 
 ## Proving Ground verifier release
 
-The CC-1 raw-proof verifier is available as the immutable npm prerelease `sigil-attestations@0.2.1-rc.1`. Install the exact version so prerelease updates cannot move the dependency implicitly:
+The CC-1 raw-proof verifier is available as the immutable npm prerelease `sigil-attestations@0.2.1-rc.2`. Install the exact version so prerelease updates cannot move the dependency implicitly:
 
 ```sh
-npm install --save-exact sigil-attestations@0.2.1-rc.1
+npm install --save-exact sigil-attestations@0.2.1-rc.2
 ```
 
-This exact prerelease was the interactive first publication required before npm permitted a trusted publisher to be configured for the new package name. Its registry shasum matches the immutable GitHub Release tarball, which carries a GitHub build attestation. This first npm version does not carry an npm registry provenance statement. npm assigned the first published version to both `next` and `latest`; consumers must install the exact prerelease version shown above. Later approved candidates publish through the repository's trusted GitHub Actions publisher.
+RC-2 is configured to publish through the repository's trusted GitHub Actions publisher without a repository npm token. The workflow is configured to publish the same tested tarball attached to the immutable GitHub Release and request npm registry provenance. After successful publication, `next` points to RC-2. The bootstrap RC-1 publication remains the `latest` tag until a stable release receives separate approval. RC-1 was the interactive first publication required before npm permitted a trusted publisher to be configured for the new package name. Its registry shasum matches its immutable GitHub Release tarball, but that first npm version does not carry an npm registry provenance statement.
 
 ### Historical Proving Ground release
 
