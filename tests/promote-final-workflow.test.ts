@@ -41,6 +41,7 @@ describe("final promotion workflow", () => {
     expect(workflow).toContain('= "$GITHUB_SHA"');
     expect(workflow).toContain("actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6");
     expect(workflow).toContain("subject-path:");
+    expect(workflow).toContain("--verify-tag --prerelease");
     expect(workflow).not.toContain('gh release view "$GITHUB_REF_NAME"');
   });
 
