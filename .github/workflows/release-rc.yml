@@ -79,7 +79,7 @@ jobs:
         run: >-
           gh release create "$GITHUB_REF_NAME" sigil-attestations-*.tgz
           sigil-attestations-*.tgz.sha256 --title "$GITHUB_REF_NAME"
-          --notes-file RELEASE-CANDIDATE.md --verify-tag
+          --notes-file RELEASE-CANDIDATE.md --verify-tag --prerelease
 
   publish:
     needs: [build, release]
