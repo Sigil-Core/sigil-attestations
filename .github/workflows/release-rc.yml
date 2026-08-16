@@ -14,11 +14,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # v4.0.4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22.22.0
           cache: npm
@@ -79,7 +79,7 @@ jobs:
         run: >-
           gh release create "$GITHUB_REF_NAME" sigil-attestations-*.tgz
           sigil-attestations-*.tgz.sha256 --title "$GITHUB_REF_NAME"
-          --notes-file RELEASE-CANDIDATE.md --verify-tag
+          --notes-file RELEASE-CANDIDATE.md --verify-tag --prerelease
 
   publish:
     needs: [build, release]
@@ -93,7 +93,7 @@ jobs:
         with:
           name: verifier-candidate-${{ github.ref_name }}
           path: .
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24"
           registry-url: https://registry.npmjs.org
