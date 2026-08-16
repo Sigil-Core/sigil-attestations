@@ -35,12 +35,13 @@ describe("final promotion workflow", () => {
     expect(workflow).toContain("persist-credentials: false");
     expect(workflow).toContain("id-token: write");
     expect(workflow).toContain("attestations: write");
-    expect(workflow).toContain("actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02");
     expect(workflow).toContain("actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c");
+    expect(workflow).toContain("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a");
     expect(workflow).toContain(`git rev-parse "refs/tags/${githubRefName}^{commit}"`);
     expect(workflow).toContain('= "$GITHUB_SHA"');
-    expect(workflow).toContain("actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6");
+    expect(workflow).toContain("actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d");
     expect(workflow).toContain("subject-path:");
+    expect(workflow).toContain("--verify-tag --prerelease");
     expect(workflow).not.toContain('gh release view "$GITHUB_REF_NAME"');
   });
 
