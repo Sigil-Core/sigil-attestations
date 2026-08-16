@@ -35,8 +35,8 @@ describe("final promotion workflow", () => {
     expect(workflow).toContain("persist-credentials: false");
     expect(workflow).toContain("id-token: write");
     expect(workflow).toContain("attestations: write");
+    expect(workflow).toContain("actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c");
     expect(workflow).toContain("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a");
-    expect(workflow).toContain("actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093");
     expect(workflow).toContain(`git rev-parse "refs/tags/${githubRefName}^{commit}"`);
     expect(workflow).toContain('= "$GITHUB_SHA"');
     expect(workflow).toContain("actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d");
