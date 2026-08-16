@@ -1,6 +1,5 @@
 {
-  "skipReview": "AUTOMATIC",
-  "triggerOnUpdates": false,
+  "triggerOnUpdates": true,
   "context": {
     "repos": ["Sigil-Core/sigil-sign"]
   }
