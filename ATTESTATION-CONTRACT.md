@@ -106,7 +106,7 @@ VERIFY.md
 }
 ```
 
-New proof bundles must use the current `@sigilcore/warrant-core@0.2.3` identifier. To retain independently verifiable historical evidence, the verifier also accepts `@sigilcore/warrant-core@0.2.1` only for already-issued `sigil-policy-canonical/v1` envelopes. It rejects every other identifier. For either accepted identifier, the verifier requires canonical equality between `policy` and the parsed Warrant, equality between the two independently derived policy hashes, and equality with the signed `policyHash`.
+New proof bundles must use the current `@sigilcore/warrant-core@0.2.3` identifier. This identifier names canonicalization behavior, not the installed npm version, so it does not track the `package.json` pin and is not expected to equal it. It advances only when a `@sigilcore/warrant-core` release changes canonicalization output, at which point the prior value is retained for verification only. The pin is `0.2.4` today, and that release is byte-identical to `0.2.3` across every non-documentation file, so it materializes no new envelope and the identifier stays at `0.2.3`. To retain independently verifiable historical evidence, the verifier also accepts `@sigilcore/warrant-core@0.2.1` only for already-issued `sigil-policy-canonical/v1` envelopes. It rejects every other identifier. For either accepted identifier, the verifier requires canonical equality between `policy` and the parsed Warrant, equality between the two independently derived policy hashes, and equality with the signed `policyHash`.
 
 `pqc-keys.json` and `VERIFY.md` remain required release-bundle materials but are informational in this EdDSA-only verifier milestone. The verifier does not verify ML-DSA-65 signatures, but it requires the declared `pqcKey.kid` and raw-key SHA-256 fingerprint in the separately supplied trust manifest to match the bundle snapshot. ML-DSA-65 signature verification is deferred.
 
@@ -122,7 +122,7 @@ sigil-verify --bundle ./proof-bundle --trust ./sigil-trust.v1.json --mode audit 
 
 ### Warrant Builder: no user-interface or signing change in Phase 2
 
-The verifier consumes a downloaded signed Warrant through the exact `@sigilcore/warrant-core@0.2.3` parser and canonicalizer. It adds no Builder field, import rule, signing path, preview behavior, download format, deployment behavior, migration, or round-trip change. The release gate is the existing Builder regression evidence plus this verifier's derived-policy test. Any policy hash difference between Builder output and the shared core blocks fixture release.
+The verifier consumes a downloaded signed Warrant through the pinned `@sigilcore/warrant-core` parser and canonicalizer, whose behavior is identified in the envelope as `@sigilcore/warrant-core@0.2.3`. Install the version in `package.json`, not the identifier. It adds no Builder field, import rule, signing path, preview behavior, download format, deployment behavior, migration, or round-trip change. The release gate is the existing Builder regression evidence plus this verifier's derived-policy test. Any policy hash difference between Builder output and the shared core blocks fixture release.
 
 ### Manual Warrant: no grid, sample, or authoring-flow change in Phase 2
 
