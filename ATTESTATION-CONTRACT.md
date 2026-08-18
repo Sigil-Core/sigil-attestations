@@ -122,7 +122,7 @@ sigil-verify --bundle ./proof-bundle --trust ./sigil-trust.v1.json --mode audit 
 
 ### Warrant Builder: no user-interface or signing change in Phase 2
 
-The verifier consumes a downloaded signed Warrant through the exact `@sigilcore/warrant-core@0.2.3` parser and canonicalizer. It adds no Builder field, import rule, signing path, preview behavior, download format, deployment behavior, migration, or round-trip change. The release gate is the existing Builder regression evidence plus this verifier's derived-policy test. Any policy hash difference between Builder output and the shared core blocks fixture release.
+The verifier consumes a downloaded signed Warrant through the pinned `@sigilcore/warrant-core` parser and canonicalizer, whose behavior is identified in the envelope as `@sigilcore/warrant-core@0.2.3`. Install the version in `package.json`, not the identifier. It adds no Builder field, import rule, signing path, preview behavior, download format, deployment behavior, migration, or round-trip change. The release gate is the existing Builder regression evidence plus this verifier's derived-policy test. Any policy hash difference between Builder output and the shared core blocks fixture release.
 
 ### Manual Warrant: no grid, sample, or authoring-flow change in Phase 2
 
