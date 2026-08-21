@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "scanPaths": [
+    "."
+  ],
+  "excludedPaths": [
+    "decision-literal-allowlist.json",
+    "docs/evidence/decision-vocabulary-wave0.md",
+    "scripts/decision_literal_gate.py",
+    "tests/decision_literal_gate_proof.py"
+  ],
+  "allowedOccurrences": [
+    {
+      "path": "docs/sign-README.md",
+      "literal": "APPROVED",
+      "expression": "\"status\": \"APPROVED\",",
+      "expectedCount": 1,
+      "reason": "Current Wave 1 Sigil Sign response example; cleanup follows the emitter flip."
+    }
+  ]
+}
