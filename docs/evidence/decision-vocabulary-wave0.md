@@ -8,7 +8,7 @@ for the complete baseline. Classifications use the closed set from the design.
 
 | Baseline path | Occurrence | Classification | Action |
 | --- | --- | --- | --- |
-| `docs/sign-README.md` | `"status": "APPROVED",` | gate-decision | The current response example changes to the canonical ALLOWED literal. |
+| `docs/sign-README.md` | `"status": "APPROVED",` | gate-decision | Retain during Wave 1; replace after the emitter flip in the Wave 4 sweep. |
 
 Totals at baseline: gate-decision 1; hold-status 0;
 foreign-domain 0. The current allowlist identifies the one retained or
