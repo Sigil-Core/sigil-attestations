@@ -18,7 +18,7 @@ TEXT_SUFFIXES = {
     ".sql", ".toml", ".ts", ".tsx", ".txt", ".yaml", ".yml",
 }
 TEXT_NAMES = {"Dockerfile", "LICENSE", "Makefile"}
-SKIP_DIRS = {".git", ".venv", "__pycache__", "build", "coverage", "dist", "node_modules"}
+SKIP_DIRS = {".git", ".venv", "__pycache__", "build", "coverage", "dist", "dist-server", "node_modules"}
 
 
 def fail(message: str) -> "NoReturn":
