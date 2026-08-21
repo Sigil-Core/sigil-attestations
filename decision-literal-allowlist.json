@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "scanPaths": [
+    "."
+  ],
+  "excludedPaths": [
+    "decision-literal-allowlist.json",
+    "docs/evidence/decision-vocabulary-wave0.md",
+    "scripts/decision_literal_gate.py",
+    "tests/decision_literal_gate_proof.py"
+  ],
+  "allowedOccurrences": [
+    {
+      "path": "docs/sign-README.md",
+      "literal": "ALLOWED",
+      "expression": "\"status\": \"ALLOWED\",",
+      "expectedCount": 1,
+      "reason": "Current Sigil Sign response example using the canonical success outcome."
+    }
+  ]
+}

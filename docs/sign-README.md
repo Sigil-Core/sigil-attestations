@@ -89,7 +89,7 @@ No execution should occur without a valid attestation.
 
 ```json
 {
-  "status": "APPROVED",
+  "status": "ALLOWED",
   "intent_attestation": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...",
   "message": "Intent verified against warranty.md. Append attestation to transaction calldata."
 }
