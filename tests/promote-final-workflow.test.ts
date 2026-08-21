@@ -39,7 +39,7 @@ describe("final promotion workflow", () => {
     expect(workflow).toContain("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a");
     expect(workflow).toContain(`git rev-parse "refs/tags/${githubRefName}^{commit}"`);
     expect(workflow).toContain('= "$GITHUB_SHA"');
-    expect(workflow).toContain("actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d");
+    expect(workflow).toContain("actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6");
     expect(workflow).toContain("subject-path:");
     expect(workflow).toContain("--verify-tag --prerelease");
     expect(workflow).not.toContain('gh release view "$GITHUB_REF_NAME"');
