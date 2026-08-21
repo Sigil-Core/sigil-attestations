@@ -21,7 +21,10 @@ def run(root: Path, blocking: bool) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, check=False, capture_output=True, text=True, timeout=10)
 
 
-with tempfile.TemporaryDirectory(prefix="decision-literal-gate-") as temporary:
+with (
+    tempfile.TemporaryDirectory(prefix="decision-literal-gate-") as temporary,
+    tempfile.TemporaryDirectory(prefix="decision-literal-external-") as external_temporary,
+):
     root = Path(temporary)
     source = root / "src"
     source.mkdir()
@@ -53,4 +56,19 @@ with tempfile.TemporaryDirectory(prefix="decision-literal-gate-") as temporary:
     if advisory.returncode != 0 or "1 violation(s) (advisory)" not in advisory.stderr:
         sys.stderr.write(advisory.stderr)
         raise SystemExit("Advisory mode did not report without blocking.")
-    print("decision-literal-gate-proof: clean pass, blocking failure, advisory report")
+    planted.write_text('status = "DENIED"\n', encoding="utf-8")
+    extensionless = root / "CODEOWNERS"
+    extensionless.write_text(f"* @{LITERAL}\n", encoding="utf-8")
+    extensionless_result = run(root, True)
+    if extensionless_result.returncode != 1 or "CODEOWNERS:1:" not in extensionless_result.stderr:
+        sys.stderr.write(extensionless_result.stderr)
+        raise SystemExit("Extensionless tracked text was not scanned.")
+    extensionless.unlink()
+    external = Path(external_temporary) / "outside.txt"
+    external.write_text(f"{LITERAL}\n", encoding="utf-8")
+    (root / "outside-link").symlink_to(external)
+    escaped = run(root, True)
+    if escaped.returncode != 2 or "Decision literal file escapes repository root." not in escaped.stderr:
+        sys.stderr.write(escaped.stderr)
+        raise SystemExit("External symlink did not fail with a controlled diagnostic.")
+    print("decision-literal-gate-proof: clean, planted, extensionless, and symlink controls pass")

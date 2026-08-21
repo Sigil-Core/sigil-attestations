@@ -12,12 +12,6 @@ from pathlib import Path
 
 LITERALS = {"APPRO" + "VED", "ALLOW" + "ED"}
 TOKEN = re.compile(r"(?<![A-Z0-9_])(APPRO" + r"VED|ALLOW" + r"ED)(?![A-Z0-9_])")
-TEXT_SUFFIXES = {
-    ".cfg", ".conf", ".css", ".env", ".example", ".html", ".ini",
-    ".js", ".json", ".jsx", ".md", ".mjs", ".mts", ".py", ".sh",
-    ".sql", ".toml", ".ts", ".tsx", ".txt", ".yaml", ".yml",
-}
-TEXT_NAMES = {"Dockerfile", "LICENSE", "Makefile"}
 SKIP_DIRS = {".git", ".venv", "__pycache__", "build", "coverage", "dist", "dist-server", "node_modules"}
 
 
@@ -62,11 +56,14 @@ def text_files(root: Path, scan_paths: list[object], exclusions: set[str]) -> li
                 continue
             if not candidate.is_file():
                 continue
-            repo_path = candidate.resolve().relative_to(root).as_posix()
+            resolved = candidate.resolve()
+            try:
+                repo_path = resolved.relative_to(root).as_posix()
+            except ValueError:
+                fail("Decision literal file escapes repository root.")
             if repo_path in exclusions:
                 continue
-            if candidate.suffix.lower() in TEXT_SUFFIXES or candidate.name in TEXT_NAMES:
-                files.add(candidate.resolve())
+            files.add(resolved)
     if not files:
         fail("decision-literal-gate: no text files matched.")
     return sorted(files)
