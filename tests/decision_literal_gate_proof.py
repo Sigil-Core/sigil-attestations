@@ -11,6 +11,9 @@ from pathlib import Path
 
 
 GATE = Path(__file__).resolve().parents[1] / "scripts" / "decision_literal_gate.py"
+WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "decision-literal-gate.yml"
+BLOCKING_WORKFLOW_COMMAND = "run: python3 scripts/decision_literal_gate.py --blocking"
+ADVISORY_WORKFLOW_COMMAND = "run: python3 scripts/decision_literal_gate.py"
 LITERAL = "ALLOW" + "ED"
 
 
@@ -19,6 +22,13 @@ def run(root: Path, blocking: bool) -> subprocess.CompletedProcess[str]:
     if blocking:
         command.append("--blocking")
     return subprocess.run(command, check=False, capture_output=True, text=True, timeout=10)
+
+
+workflow_lines = [line.strip() for line in WORKFLOW.read_text(encoding="utf-8").splitlines()]
+if workflow_lines.count(BLOCKING_WORKFLOW_COMMAND) != 1:
+    raise SystemExit("Workflow must invoke the exact blocking literal-gate command once.")
+if ADVISORY_WORKFLOW_COMMAND in workflow_lines:
+    raise SystemExit("Workflow still invokes the advisory literal-gate command.")
 
 
 with (
