@@ -12,10 +12,10 @@
   "allowedOccurrences": [
     {
       "path": "docs/sign-README.md",
-      "literal": "APPROVED",
-      "expression": "\"status\": \"APPROVED\",",
+      "literal": "ALLOWED",
+      "expression": "\"status\": \"ALLOWED\",",
       "expectedCount": 1,
-      "reason": "Current Wave 1 Sigil Sign response example; cleanup follows the emitter flip."
+      "reason": "Canonical Sigil Sign response example."
     }
   ]
 }

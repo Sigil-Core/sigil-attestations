@@ -85,11 +85,11 @@ No execution should occur without a valid attestation.
 
 ---
 
-### Response Schema (Approved)
+### Response Schema (Allowed)
 
 ```json
 {
-  "status": "APPROVED",
+  "status": "ALLOWED",
   "intent_attestation": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...",
   "message": "Intent verified against warranty.md. Append attestation to transaction calldata."
 }
