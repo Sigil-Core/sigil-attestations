@@ -27,18 +27,40 @@ const requiredFiles = [
 ] as const;
 
 export const CANONICAL_POLICY_ENVELOPE_SCHEMA = "sigil-policy-canonical/v1";
-/** Version used when this release materializes a new proof-bundle envelope. */
-export const CANONICALIZER_VERSION = "@sigilcore/warrant-core@0.2.3";
+/**
+ * Identifier a new proof-bundle envelope must carry. It names canonicalization
+ * behavior, not the installed npm version, but it must name a release whose
+ * behavior this package can actually reproduce, so it tracks the pin whenever
+ * the pin widens what can be canonicalized.
+ */
+export const CANONICALIZER_VERSION = "@sigilcore/warrant-core@0.4.0";
 
 /**
- * Verification-only compatibility for proof bundles already issued by the
- * previous pinned verifier. New emitters must use CANONICALIZER_VERSION.
+ * Verification-only compatibility for envelopes already issued by earlier
+ * pinned verifiers, newest first. New emitters must use CANONICALIZER_VERSION.
+ *
+ * An identifier is retained here only while its canonicalization output is
+ * proven byte-identical to CANONICALIZER_VERSION for every policy both
+ * releases accept. That holds for 0.2.1 and 0.2.3: measured across the shipped
+ * sigil-open-framework examples, the sigil-sign fixtures, and this package's
+ * own test Warrant, all three releases produce the same canonical bytes and
+ * the same policy hash. 0.4.0 differs only by accepting Policy 2.2 and 2.3,
+ * which the earlier releases reject outright rather than canonicalize
+ * differently.
+ *
+ * Identifiers this package once pinned but never shipped as an envelope value
+ * (0.1.1, 0.2.0) stay rejected, as do releases that were never an identifier
+ * at all (0.2.2, 0.2.4, 0.3.0). Acceptance is an allowlist of values a bundle
+ * may legitimately carry, not a compatibility claim about every release.
  */
-export const HISTORICAL_CANONICALIZER_VERSION = "@sigilcore/warrant-core@0.2.1";
+export const HISTORICAL_CANONICALIZER_VERSIONS = [
+  "@sigilcore/warrant-core@0.2.3",
+  "@sigilcore/warrant-core@0.2.1",
+] as const;
 
-const acceptedCanonicalizerVersions = new Set([
+const acceptedCanonicalizerVersions = new Set<string>([
   CANONICALIZER_VERSION,
-  HISTORICAL_CANONICALIZER_VERSION,
+  ...HISTORICAL_CANONICALIZER_VERSIONS,
 ]);
 
 const readUtf8 = async (bundlePath: string, name: string): Promise<string> => {

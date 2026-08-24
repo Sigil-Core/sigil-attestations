@@ -15,7 +15,7 @@ import { verifyProofBundle } from "../src/node.js";
 import {
   CANONICALIZER_VERSION,
   CANONICAL_POLICY_ENVELOPE_SCHEMA,
-  HISTORICAL_CANONICALIZER_VERSION,
+  HISTORICAL_CANONICALIZER_VERSIONS,
 } from "../src/bundle.js";
 import { fingerprintEd25519RawKey, fingerprintJwk, fingerprintPqcRawKey, validateTrustManifest } from "../src/trust.js";
 import type { SigilTrustManifestV1, VerificationMode } from "../src/types.js";
@@ -284,24 +284,51 @@ describe("Proving Ground verifier profile", () => {
   });
 
   it("binds the response, canonicalizer, PQC snapshot, and trust lifecycle", async () => {
-    expect(CANONICALIZER_VERSION).toBe("@sigilcore/warrant-core@0.2.3");
+    expect(CANONICALIZER_VERSION).toBe("@sigilcore/warrant-core@0.4.0");
+    expect(HISTORICAL_CANONICALIZER_VERSIONS).toStrictEqual([
+      "@sigilcore/warrant-core@0.2.3",
+      "@sigilcore/warrant-core@0.2.1",
+    ]);
     const responseMismatch = await makeArtifacts({ responseAttestation: "not-the-attestation" });
     await expect(verifyProofBundle({ bundlePath: responseMismatch.directory, trust: responseMismatch.trust, now: NOW })).rejects.toThrow("response.json intent_attestation");
 
-    const historicalCanonicalizer = await makeArtifacts({ canonical: {
+    // 0.2.1 envelopes stay verifiable, canonicalized by the real 0.2.1 module
+    // rather than the installed one, so this proves cross-release agreement
+    // instead of assuming it.
+    const historicalFrom021 = await makeArtifacts({ canonical: {
       schema: CANONICAL_POLICY_ENVELOPE_SCHEMA,
-      canonicalizer: HISTORICAL_CANONICALIZER_VERSION,
+      canonicalizer: HISTORICAL_CANONICALIZER_VERSIONS[1],
       policy: JSON.parse(canonicalizePolicyObjectFrom021(parsePolicyMarkdownFrom021(WARRANTY))),
     } });
-    await expect(verifyProofBundle({ bundlePath: historicalCanonicalizer.directory, trust: historicalCanonicalizer.trust, now: NOW })).resolves.toMatchObject({
+    await expect(verifyProofBundle({ bundlePath: historicalFrom021.directory, trust: historicalFrom021.trust, now: NOW })).resolves.toMatchObject({
       operatorSignatureValid: true,
     });
 
-    const canonicalizerMismatch = await makeArtifacts();
-    const canonical = JSON.parse(await readFile(join(canonicalizerMismatch.directory, "policy.canonical.json"), "utf8"));
-    canonical.canonicalizer = "@sigilcore/warrant-core@0.2.0";
-    await writeFile(join(canonicalizerMismatch.directory, "policy.canonical.json"), JSON.stringify(canonical));
-    await expect(verifyProofBundle({ bundlePath: canonicalizerMismatch.directory, trust: canonicalizerMismatch.trust, now: NOW })).rejects.toThrow("unsupported canonicalizer envelope");
+    // 0.2.3 envelopes stay verifiable through the same path.
+    const historicalFrom023 = await makeArtifacts();
+    const canonical023 = JSON.parse(await readFile(join(historicalFrom023.directory, "policy.canonical.json"), "utf8"));
+    canonical023.canonicalizer = HISTORICAL_CANONICALIZER_VERSIONS[0];
+    await writeFile(join(historicalFrom023.directory, "policy.canonical.json"), JSON.stringify(canonical023));
+    await expect(verifyProofBundle({ bundlePath: historicalFrom023.directory, trust: historicalFrom023.trust, now: NOW })).resolves.toMatchObject({
+      operatorSignatureValid: true,
+    });
+
+    // Acceptance is an allowlist of identifiers a bundle may legitimately
+    // carry, not a claim that every release is compatible. Releases that were
+    // never an envelope identifier stay rejected even though their
+    // canonicalization output matches.
+    for (const rejected of [
+      "@sigilcore/warrant-core@0.2.0",
+      "@sigilcore/warrant-core@0.2.2",
+      "@sigilcore/warrant-core@0.2.4",
+      "@sigilcore/warrant-core@0.3.0",
+    ]) {
+      const canonicalizerMismatch = await makeArtifacts();
+      const canonical = JSON.parse(await readFile(join(canonicalizerMismatch.directory, "policy.canonical.json"), "utf8"));
+      canonical.canonicalizer = rejected;
+      await writeFile(join(canonicalizerMismatch.directory, "policy.canonical.json"), JSON.stringify(canonical));
+      await expect(verifyProofBundle({ bundlePath: canonicalizerMismatch.directory, trust: canonicalizerMismatch.trust, now: NOW })).rejects.toThrow("unsupported canonicalizer envelope");
+    }
 
     const pqcSubstitution = await makeArtifacts({ pqcKeys: { keys: [{ ...PQC_KEY, publicKey: "BQYHCA" }] } });
     await expect(verifyProofBundle({ bundlePath: pqcSubstitution.directory, trust: pqcSubstitution.trust, now: NOW })).rejects.toThrow("PQC key does not match");
