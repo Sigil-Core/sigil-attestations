@@ -13,6 +13,12 @@
 
 `sigil-attestations` defines the formal cryptographic contract for Sigil OS **Intent Attestations**.
 
+This repository does not define Agent Plugins package attestations. Intent
+Attestations bind a requested action to an authorization decision. The separate
+`@sigilcore/plugin-attest` project binds an Agent Plugins package snapshot,
+capability report, publisher key, and offline trust snapshot. Do not treat one
+attestation type as evidence for the other.
+
 This repository contains:
 
 - The canonical JWT claim specification
