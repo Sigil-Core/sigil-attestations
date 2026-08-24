@@ -4,12 +4,16 @@ import { join } from "node:path";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { decodeJwt, exportJWK, generateKeyPair, SignJWT } from "jose";
-import { appendSignatureBlock, hashPgCommitV1, hashPolicy, parsePolicyMarkdown } from "@sigilcore/warrant-core";
+import { appendSignatureBlock, canonicalizePolicyObject, hashPgCommitV1, hashPolicy, parsePolicyMarkdown } from "@sigilcore/warrant-core";
 import { createNodeCryptoAdapter } from "@sigilcore/warrant-core/crypto/node";
 import {
   canonicalizePolicyObject as canonicalizePolicyObjectFrom021,
   parsePolicyMarkdown as parsePolicyMarkdownFrom021,
 } from "warrant-core-0-2-1-fixture";
+import {
+  canonicalizePolicyObject as canonicalizePolicyObjectFrom023,
+  parsePolicyMarkdown as parsePolicyMarkdownFrom023,
+} from "warrant-core-0-2-3-fixture";
 import { verifyProvingGroundAttestation } from "../src/index.js";
 import { verifyProofBundle } from "../src/node.js";
 import {
@@ -304,20 +308,32 @@ describe("Proving Ground verifier profile", () => {
       operatorSignatureValid: true,
     });
 
-    // 0.2.3 envelopes stay verifiable through the same path.
-    const historicalFrom023 = await makeArtifacts();
-    const canonical023 = JSON.parse(await readFile(join(historicalFrom023.directory, "policy.canonical.json"), "utf8"));
-    canonical023.canonicalizer = HISTORICAL_CANONICALIZER_VERSIONS[0];
-    await writeFile(join(historicalFrom023.directory, "policy.canonical.json"), JSON.stringify(canonical023));
+    // 0.2.3 envelopes stay verifiable, canonicalized by the real 0.2.3 module.
+    // Rewriting the identifier on a 0.4.0-canonicalized policy would only prove
+    // string acceptance, so this builds the policy with 0.2.3 itself and lets
+    // the verifier re-derive it under the pinned release.
+    const historicalFrom023 = await makeArtifacts({ canonical: {
+      schema: CANONICAL_POLICY_ENVELOPE_SCHEMA,
+      canonicalizer: HISTORICAL_CANONICALIZER_VERSIONS[0],
+      policy: JSON.parse(canonicalizePolicyObjectFrom023(parsePolicyMarkdownFrom023(WARRANTY))),
+    } });
     await expect(verifyProofBundle({ bundlePath: historicalFrom023.directory, trust: historicalFrom023.trust, now: NOW })).resolves.toMatchObject({
       operatorSignatureValid: true,
     });
+
+    // Every retained identifier must agree byte-for-byte with the pinned
+    // release on the shared domain. This is the invariant that justifies
+    // retention, asserted directly rather than left to the verifier path.
+    const pinnedCanonical = canonicalizePolicyObject(parsePolicyMarkdown(WARRANTY));
+    expect(canonicalizePolicyObjectFrom023(parsePolicyMarkdownFrom023(WARRANTY))).toBe(pinnedCanonical);
+    expect(canonicalizePolicyObjectFrom021(parsePolicyMarkdownFrom021(WARRANTY))).toBe(pinnedCanonical);
 
     // Acceptance is an allowlist of identifiers a bundle may legitimately
     // carry, not a claim that every release is compatible. Releases that were
     // never an envelope identifier stay rejected even though their
     // canonicalization output matches.
     for (const rejected of [
+      "@sigilcore/warrant-core@0.1.1",
       "@sigilcore/warrant-core@0.2.0",
       "@sigilcore/warrant-core@0.2.2",
       "@sigilcore/warrant-core@0.2.4",

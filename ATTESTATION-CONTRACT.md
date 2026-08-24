@@ -37,7 +37,7 @@ The profile intentionally does not require `payload.intent`, `targetAddress`, or
 
 ## Request binding: `pg-commit-v1`
 
-The proxy computes `txCommit` as lowercase SHA-256 hex over the UTF-8 bytes of `canonicalizePgCommitV1(intent)` from `@sigilcore/warrant-core@0.2.3`.
+The proxy computes `txCommit` as lowercase SHA-256 hex over the UTF-8 bytes of `canonicalizePgCommitV1(intent)`. That commitment is stable across every accepted identifier: `0.2.1`, `0.2.3` and `0.4.0` produce identical `canonicalizePgCommitV1` output, so the proxy's pinned release does not affect `txCommit` agreement with this verifier.
 
 - Object keys sort by ECMAScript UTF-16 code-unit order.
 - Array order remains unchanged.
@@ -94,7 +94,7 @@ pqc-keys.json
 VERIFY.md
 ```
 
-`response.json.intent_attestation` must byte-match `attestation.jwt`. `warranty.md` must carry a final `## signature` block. The verifier checks that signature over the unsigned Warrant bytes, parses the Warrant with `@sigilcore/warrant-core@0.2.3`, and derives its hash independently.
+`response.json.intent_attestation` must byte-match `attestation.jwt`. `warranty.md` must carry a final `## signature` block. The verifier checks that signature over the unsigned Warrant bytes, parses the Warrant with the pinned `@sigilcore/warrant-core@0.4.0`, and derives its hash independently. It always parses with the pinned release, never with the release named in the envelope.
 
 `policy.canonical.json` uses this versioned envelope. Metadata never enters the policy hash:
 
