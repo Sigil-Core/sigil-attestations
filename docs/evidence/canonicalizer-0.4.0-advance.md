@@ -138,10 +138,16 @@ then compare the accepted domains themselves.
 
 The corpus above spans repositories and cannot be checked in wholesale, so the
 standing regression guard is `tests/canonicalizer-corpus.test.ts`, which runs
-the same comparison on every pull request over seven in-repo fixtures in
+the same comparison on every pull request over nine in-repo fixtures in
 `tests/fixtures/canonicalizer-corpus/`. Those fixtures deliberately exercise
 multiple typed blocks, list values, repeated per-token keys, `allow_only` and
 `deny_if` expressions, quoted `deny_string` literals, non-ASCII values, and
-decimal formatting. A future release that changes canonicalization output for
+decimal formatting, and span four policy versions including `0.9.0` and
+`1.0.0`. The legacy versions matter because `0.x` and `1.x` are inside every
+release's accepted range, yet every `1.0.0` file in the corpus above happened
+to be rejected for unrelated syntax reasons, so that version family would
+otherwise have gone unmeasured. The same test also asserts
+`canonicalizePgCommitV1` agreement across the three releases, which backs the
+`txCommit` claim in `ATTESTATION-CONTRACT.md`. A future release that changes canonicalization output for
 any of those shapes fails CI rather than being caught by re-running this
 document by hand.

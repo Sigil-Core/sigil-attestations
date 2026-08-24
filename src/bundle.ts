@@ -39,14 +39,18 @@ export const CANONICALIZER_VERSION = "@sigilcore/warrant-core@0.4.0";
  * Verification-only compatibility for envelopes already issued by earlier
  * pinned verifiers, newest first. New emitters must use CANONICALIZER_VERSION.
  *
- * An identifier is retained here only while its canonicalization output is
- * proven byte-identical to CANONICALIZER_VERSION for every policy both
- * releases accept. That holds for 0.2.1 and 0.2.3: measured across the shipped
+ * An identifier is retained here only while no known policy that both this
+ * release and the retained release accept canonicalizes differently. For 0.2.1
+ * and 0.2.3 that is supported by measurement, not proof: across the shipped
  * sigil-open-framework examples, the sigil-sign fixtures, and this package's
- * own test Warrant, all three releases produce the same canonical bytes and
- * the same policy hash. 0.4.0 differs only by accepting Policy 2.2 and 2.3,
- * which the earlier releases reject outright rather than canonicalize
- * differently.
+ * own test Warrant, no policy in the shared accepted domain produced different
+ * canonical bytes or a different policy hash, and
+ * tests/canonicalizer-corpus.test.ts re-asserts that result in CI on every
+ * pull request. The only measured differences are in the accepted domain
+ * itself: 0.4.0 additionally accepts Policy 2.2 and 2.3 and adds a compiled
+ * response-policy surface and a response.deny_string custom rule reachable
+ * only there, all of which the earlier releases reject outright rather than
+ * canonicalize differently.
  *
  * Identifiers this package once pinned but never shipped as an envelope value
  * (0.1.1, 0.2.0) stay rejected, as do releases that were never an identifier
