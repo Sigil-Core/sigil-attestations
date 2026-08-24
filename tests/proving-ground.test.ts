@@ -322,8 +322,9 @@ describe("Proving Ground verifier profile", () => {
     });
 
     // Every retained identifier must agree byte-for-byte with the pinned
-    // release on the shared domain. This is the invariant that justifies
-    // retention, asserted directly rather than left to the verifier path.
+    // release. This is the invariant that justifies retention, so it is
+    // asserted directly rather than inferred from the verifier path, and over
+    // a corpus rather than the single trivial test Warrant.
     const pinnedCanonical = canonicalizePolicyObject(parsePolicyMarkdown(WARRANTY));
     expect(canonicalizePolicyObjectFrom023(parsePolicyMarkdownFrom023(WARRANTY))).toBe(pinnedCanonical);
     expect(canonicalizePolicyObjectFrom021(parsePolicyMarkdownFrom021(WARRANTY))).toBe(pinnedCanonical);

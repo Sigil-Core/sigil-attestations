@@ -40,12 +40,29 @@ Canonical output bytes and policy hashes were compared across releases.
 | Accepted only by `0.4.0` | 2 |
 | Rejected by every release, identically | 5 |
 
-The five universal rejections fail for the same reason in every release: three
-carry a policy version below 2.0.0, two use the retired `## class 1` block.
+The five universal rejections fail with the identical error string in every
+release, so they are not evidence of drift:
 
-Because divergence is zero, advancing the identifier changed no policy hash and
-invalidated no already-issued bundle. This is what justifies retaining `0.2.3`
-and `0.2.1` rather than dropping them.
+| Count | Exact error | Declared version |
+| --- | --- | --- |
+| 3 | `Policy syntax requires version 2.0.0` | `1.0.0` |
+| 2 | `Unknown policy block ## class 1: hard rules` | `1.0.0` |
+
+Note that these are parse-level rejections, not policy-version-range
+rejections. The range table in Result 2 lists `0.x` and `1.x` as inside every
+release's accepted range; these five files are rejected because of the syntax
+and block names they use, not because their declared version is outside that
+range. An earlier draft of this document conflated the two and is corrected
+here.
+
+Because divergence is zero across the measured corpus, advancing the identifier
+changed no policy hash for any policy in that corpus. The corpus is every
+`warranty*.md` reachable in the cloned Sigil repositories on the measurement
+date, not a sample of bundles issued in the field, so this is evidence that the
+canonicalization behavior is unchanged rather than a census of issued bundles.
+That is what justifies retaining `0.2.3` and `0.2.1` rather than dropping
+them, and the retention invariant is asserted continuously by
+`tests/canonicalizer-corpus.test.ts`.
 
 `canonicalizePgCommitV1` was checked separately over four representative
 intents and is also identical across all five releases, so `txCommit`
@@ -91,6 +108,26 @@ produced by the real `0.2.1` and real `0.2.3` modules through the
 asserts rejection of `0.1.1`, `0.2.0`, `0.2.2`, `0.2.4` and `0.3.0`. The suite
 runs on pull requests through `dependency-audit.yml`.
 
+## Corpus
+
+The 20 policy bodies were extracted from these files, in the repositories as
+cloned on 2026-08-24. Documentation files carry their policy inside a fenced
+block; those bodies were extracted and signature blocks stripped.
+
+`sigil-open-framework`: `developer-toolkit/warranty-policy.md`, `demo/warranty.md`,
+and `examples/{defi-agent, claude-code-agent, cms-publisher-agent,
+outbound-email-agent, customer-support-agent, api-agent,
+stablecoin-treasury-agent, data-etl-agent, mcp-server-agent,
+rwa-rebalancing-agent, read-only-auditor}/warranty.md`.
+`sigil-sign`: `config/warranty.example.md`, `src/lex/warranty.example.md`,
+`tests/fixtures/default-policy/config/warranty.md`, and the format reference
+example. `oee`: `core/warranty.example.md`, `verticals/venture/warranty.md`.
+This package: the `WARRANTY` constant in `tests/proving-ground.test.ts`.
+
+The two accepted only by `0.4.0` are named in Result 2. The five rejected by
+every release are the three `sigil-sign` version-1.0.0 examples and the two
+`oee` files using `## class 1`.
+
 ## Reproducing
 
 Install the releases side by side under npm aliases, then for each policy
@@ -98,3 +135,13 @@ compare `canonicalizePolicyObject(parsePolicyMarkdown(text))` and
 `hashPolicy(...)` across versions. The test for whether the identifier must
 move is behavioral: compare output bytes across the shared accepted domain,
 then compare the accepted domains themselves.
+
+The corpus above spans repositories and cannot be checked in wholesale, so the
+standing regression guard is `tests/canonicalizer-corpus.test.ts`, which runs
+the same comparison on every pull request over seven in-repo fixtures in
+`tests/fixtures/canonicalizer-corpus/`. Those fixtures deliberately exercise
+multiple typed blocks, list values, repeated per-token keys, `allow_only` and
+`deny_if` expressions, quoted `deny_string` literals, non-ASCII values, and
+decimal formatting. A future release that changes canonicalization output for
+any of those shapes fails CI rather than being caught by re-running this
+document by hand.
