@@ -46,7 +46,7 @@
   },
   "dependencies": {
     "@sigilcore/warrant-core": "0.4.0",
-    "jose": "^6.2.9"
+    "jose": "^6.2.10"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
