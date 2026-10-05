@@ -33,7 +33,7 @@ This repository does **not** contain private keys, signing infrastructure, polic
 
 ## Development dependency contract
 
-Use Node 22.22.0 and npm 11.12.1. Install npm with
+Use Node 22.22.0 and npm 11.12.1. Vitest 5 requires the development runtime above; the published package’s Node 20.19 runtime support does not apply to its test tooling. Install npm with
 `npm install --global npm@11.12.1`, then install the reviewed dependency tree
 with `npm ci`; do not regenerate `package-lock.json` during normal development. The
 direct Vitest, Vite, PostCSS, and esbuild dependencies keep the browser
